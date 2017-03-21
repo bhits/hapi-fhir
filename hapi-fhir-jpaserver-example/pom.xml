@@ -250,7 +250,7 @@
 				<artifactId>docker-maven-plugin</artifactId>
 				<version>0.4.13</version>
 				<configuration>
-					<imageName>bhits/hapi-fhir</imageName>
+					<imageName>bhits/hapi-fhir-jpaserver</imageName>
 					<dockerDirectory>src/main/docker</dockerDirectory>
 					<buildArgs>
 						<finalName>${project.build.finalName}.war</finalName>
