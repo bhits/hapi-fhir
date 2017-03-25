@@ -16,3 +16,13 @@ A demonstration of this project is available here:
 http://fhirtest.uhn.ca/
 
 This project is Open Source, licensed under the Apache Software License 2.0.
+
+## Changes Made by the Consent2Share Development Team
+
+* Configure hapi-fhir-jpaserver-example to STU3
+* Configure hapi-fhir-jpaserver-example using MySQL as datasource
+* Dockerize hapi-fhir-jpaserver-example based on tomcat8 using docker maven plugin 
+* Add docker-image-desc.md in docs folder which describes hapi-fhir-jpaserver docker image
+
+
+
