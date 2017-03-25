@@ -255,6 +255,9 @@
 					<buildArgs>
 						<finalName>${project.build.finalName}.war</finalName>
 					</buildArgs>
+					<imageTags>
+						<imageTag>${project.version}</imageTag>
+					</imageTags>
 					<resources>
 						<resource>
 							<targetPath>/</targetPath>
