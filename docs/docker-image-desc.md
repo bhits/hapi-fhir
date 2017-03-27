@@ -1,21 +1,22 @@
 # Short Description
-HAPI FHIR JPA server is used as FHIR server in Consent2Share.
+The HAPI FHIR JPA server is used as as a FHIR server in Consent2Share.
 
 # Full Description
 
 # Supported Source Code Tags and Current `Dockerfile` Link
 
-[`2.3.1`](https://github.com/bhits/hapi-fhir/releases/tag/2.3)
+[`2.3-01`](https://github.com/bhits/hapi-fhir/releases/tag/2.3-01)
 
 [`Current Dockerfile`](https://github.com/bhits/hapi-fhir/blob/master/hapi-fhir-jpaserver-example/src/main/docker/Dockerfile)
 
 For more information about this image, the source code, and its history, please see the [GitHub repository](https://github.com/bhits/hapi-fhir).
 
-# What is HAPI FHIR JPA server?
+# What is the HAPI FHIR JPA Server?
 
-This HAPI FHIR JPA server is used as FHIR server in Consent2Share. Consent2Share published FHIR patient and FHIR consent to HAPI FHIR JPA server. This HAIPI FHIR JPA server provides HL7 FHIR DSTU3 models and provides a complete RESTful server implementation with MySQL as datasource.
+The HAPI FHIR JPA server is used as a FHIR server in Consent2Share V3. Consent2Share V3 publishes FHIR patient resource and FHIR consent resource to HAPI FHIR JPA server. This HAIPI FHIR JPA server provides HL7 FHIR DSTU3 models and provides a complete RESTful server implementation with MySQL as datasource.
 
 For more information and related downloads for Consent2Share, please visit [Consent2Share](https://bhits.github.io/consent2share/).
+
 # How to use this image
 
 ## Start a HAPI FHIR JPA server instance
@@ -59,7 +60,7 @@ services:
 ```
 
 # Supported Docker versions
-This image is officially supported on Docker version 1.12.1.
+This image is officially supported on Docker version 1.13.0.
 
 Support for older versions (down to 1.6) is provided on a best-effort basis.
 

@@ -21,8 +21,8 @@ This project is Open Source, licensed under the Apache Software License 2.0.
 
 * Configure hapi-fhir-jpaserver-example to STU3
 * Configure hapi-fhir-jpaserver-example using MySQL as datasource
-* Dockerize hapi-fhir-jpaserver-example based on tomcat8 using docker maven plugin 
-* Add docker-image-desc.md in docs folder which describes hapi-fhir-jpaserver docker image
+* Dockerize hapi-fhir-jpaserver-example based on Tomcat 8 using Docker Maven Plugin 
+* Add docker-image-desc.md in docs folder which describes hapi-fhir-jpaserver Docker image
 
 
 
