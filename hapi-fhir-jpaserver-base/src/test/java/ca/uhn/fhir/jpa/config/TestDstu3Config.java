@@ -1,15 +1,17 @@
 package ca.uhn.fhir.jpa.config;
 
+import java.sql.Connection;
+import java.sql.SQLException;
 import java.util.Properties;
+import java.util.concurrent.TimeUnit;
 
 import javax.persistence.EntityManagerFactory;
 import javax.sql.DataSource;
 
+import net.ttddyy.dsproxy.listener.logging.SLF4JLogLevel;
 import org.apache.commons.dbcp2.BasicDataSource;
 import org.hibernate.jpa.HibernatePersistenceProvider;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Lazy;
+import org.springframework.context.annotation.*;
 import org.springframework.orm.jpa.JpaTransactionManager;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
@@ -17,10 +19,16 @@ import org.springframework.transaction.annotation.EnableTransactionManagement;
 import ca.uhn.fhir.jpa.dao.DaoConfig;
 import ca.uhn.fhir.rest.server.interceptor.RequestValidatingInterceptor;
 import ca.uhn.fhir.validation.ResultSeverityEnum;
+import net.ttddyy.dsproxy.support.ProxyDataSourceBuilder;
+
+import static org.junit.Assert.fail;
 
 @Configuration
 @EnableTransactionManagement()
 public class TestDstu3Config extends BaseJavaConfigDstu3 {
+
+	static final org.slf4j.Logger ourLog = org.slf4j.LoggerFactory.getLogger(TestDstu3Config.class);
+	private Exception myLastStackTrace;
 
 	@Bean()
 	public DaoConfig daoConfig() {
@@ -28,20 +36,81 @@ public class TestDstu3Config extends BaseJavaConfigDstu3 {
 	}
 
 	@Bean()
-	public DataSource dataSource() {
-		BasicDataSource retVal = new BasicDataSource();
+	public BasicDataSource basicDataSource() {
+		BasicDataSource retVal = new BasicDataSource() {
+
+
+			@Override
+			public Connection getConnection() throws SQLException {
+				ConnectionWrapper retVal;
+				try {
+					retVal = new ConnectionWrapper(super.getConnection());
+				} catch (Exception e) {
+					ourLog.error("Exceeded maximum wait for connection", e);
+					logGetConnectionStackTrace();
+//					if ("true".equals(System.getProperty("ci"))) {
+					fail("Exceeded maximum wait for connection: "+ e.toString());
+//					}
+//					System.exit(1);
+					retVal = null;
+				}
+
+				try {
+					throw new Exception();
+				} catch (Exception e) {
+					myLastStackTrace = e;
+				}
+
+				return retVal;
+			}
+
+			private void logGetConnectionStackTrace() {
+				StringBuilder b = new StringBuilder();
+				b.append("Last connection request stack trace:");
+				for (StackTraceElement next : myLastStackTrace.getStackTrace()) {
+					b.append("\n   ");
+					b.append(next.getClassName());
+					b.append(".");
+					b.append(next.getMethodName());
+					b.append("(");
+					b.append(next.getFileName());
+					b.append(":");
+					b.append(next.getLineNumber());
+					b.append(")");
+				}
+				ourLog.info(b.toString());
+			}
+
+		};
 		retVal.setDriver(new org.apache.derby.jdbc.EmbeddedDriver());
 		retVal.setUrl("jdbc:derby:memory:myUnitTestDB;create=true");
+		retVal.setMaxWaitMillis(10000);
 		retVal.setUsername("");
 		retVal.setPassword("");
+
+		/*
+		 * We use a randomized number of maximum threads in order to try
+		 * and catch any potential deadlocks caused by database connection
+		 * starvation
+		 */
+		int maxThreads = (int) (Math.random() * 6.0) + 1;
+		retVal.setMaxTotal(maxThreads);
+
 		return retVal;
 	}
 
 	@Bean()
-	public JpaTransactionManager transactionManager(EntityManagerFactory entityManagerFactory) {
-		JpaTransactionManager retVal = new JpaTransactionManager();
-		retVal.setEntityManagerFactory(entityManagerFactory);
-		return retVal;
+	@Primary()
+	public DataSource dataSource() {
+
+		DataSource dataSource = ProxyDataSourceBuilder
+				.create(basicDataSource())
+//				.logQueryBySlf4j(SLF4JLogLevel.INFO, "SQL")
+				.logSlowQueryBySlf4j(1000, TimeUnit.MILLISECONDS)
+				.countQuery()
+				.build();
+
+		return dataSource;
 	}
 
 	@Bean()
@@ -81,6 +150,13 @@ public class TestDstu3Config extends BaseJavaConfigDstu3 {
 		requestValidator.addValidatorModule(instanceValidatorDstu3());
 
 		return requestValidator;
+	}
+
+	@Bean()
+	public JpaTransactionManager transactionManager(EntityManagerFactory entityManagerFactory) {
+		JpaTransactionManager retVal = new JpaTransactionManager();
+		retVal.setEntityManagerFactory(entityManagerFactory);
+		return retVal;
 	}
 
 }

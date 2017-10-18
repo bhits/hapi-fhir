@@ -1,20 +1,11 @@
 package ca.uhn.fhir.jpa.dao.dstu3;
 
-import static org.hamcrest.Matchers.containsString;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertThat;
-import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.when;
-
-import java.util.Arrays;
-
+import ca.uhn.fhir.jpa.dao.DaoConfig;
+import ca.uhn.fhir.jpa.dao.DeleteMethodOutcome;
+import ca.uhn.fhir.rest.api.server.RequestDetails;
+import ca.uhn.fhir.rest.server.interceptor.IServerOperationInterceptor;
+import ca.uhn.fhir.rest.server.interceptor.ServerOperationInterceptorAdapter;
+import ca.uhn.fhir.util.TestUtil;
 import org.hl7.fhir.dstu3.model.Bundle;
 import org.hl7.fhir.dstu3.model.Bundle.BundleType;
 import org.hl7.fhir.dstu3.model.Bundle.HTTPVerb;
@@ -27,27 +18,20 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
-import ca.uhn.fhir.jpa.dao.DaoConfig;
-import ca.uhn.fhir.jpa.dao.DaoMethodOutcome;
-import ca.uhn.fhir.jpa.dao.DeleteMethodOutcome;
-import ca.uhn.fhir.jpa.entity.ResourceTable;
-import ca.uhn.fhir.jpa.interceptor.IJpaServerInterceptor;
-import ca.uhn.fhir.jpa.interceptor.JpaServerInterceptorAdapter;
-import ca.uhn.fhir.model.api.IResource;
-import ca.uhn.fhir.rest.method.RequestDetails;
-import ca.uhn.fhir.rest.server.interceptor.IServerInterceptor;
-import ca.uhn.fhir.rest.server.interceptor.IServerInterceptor.ActionRequestDetails;
-import ca.uhn.fhir.rest.server.interceptor.IServerOperationInterceptor;
-import ca.uhn.fhir.rest.server.servlet.ServletRequestDetails;
-import ca.uhn.fhir.util.TestUtil;
+import static org.hamcrest.Matchers.containsString;
+import static org.junit.Assert.*;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.*;
 
 public class FhirResourceDaoDstu3InterceptorTest extends BaseJpaDstu3Test {
 	private static final org.slf4j.Logger ourLog = org.slf4j.LoggerFactory.getLogger(FhirResourceDaoDstu3InterceptorTest.class);
-	private IJpaServerInterceptor myJpaInterceptor;
-	private JpaServerInterceptorAdapter myJpaInterceptorAdapter = new JpaServerInterceptorAdapter();
+	private IServerOperationInterceptor myJpaInterceptor;
+	private ServerOperationInterceptorAdapter myJpaInterceptorAdapter = new ServerOperationInterceptorAdapter();
+	private IServerOperationInterceptor myServerOperationInterceptor;
 
 	@After
 	public void after() {
@@ -58,9 +42,21 @@ public class FhirResourceDaoDstu3InterceptorTest extends BaseJpaDstu3Test {
 
 	@Before
 	public void before() {
-		myJpaInterceptor = mock(IJpaServerInterceptor.class);
+		myJpaInterceptor = mock(IServerOperationInterceptor.class);
+		
+		myServerOperationInterceptor = mock(IServerOperationInterceptor.class, new Answer<Object>() {
+			@Override
+			public Object answer(InvocationOnMock theInvocation) throws Throwable {
+				if (theInvocation.getMethod().getReturnType().equals(boolean.class)) {
+					return true;
+				}
+				return null;
+			}
+		});
+		
 		myDaoConfig.getInterceptors().add(myJpaInterceptor);
 		myDaoConfig.getInterceptors().add(myJpaInterceptorAdapter);
+		myDaoConfig.getInterceptors().add(myServerOperationInterceptor);
 	}
 
 	@Test
@@ -69,17 +65,17 @@ public class FhirResourceDaoDstu3InterceptorTest extends BaseJpaDstu3Test {
 		p.addName().setFamily("PATIENT");
 		Long id = myPatientDao.create(p, mySrd).getId().getIdPartAsLong();
 
-		ArgumentCaptor<ActionRequestDetails> detailsCapt;
-		ArgumentCaptor<ResourceTable> tableCapt;
+		ArgumentCaptor<RequestDetails> detailsCapt;
+		ArgumentCaptor<IBaseResource> tableCapt;
 
-		detailsCapt = ArgumentCaptor.forClass(ActionRequestDetails.class);
-		tableCapt = ArgumentCaptor.forClass(ResourceTable.class);
+		detailsCapt = ArgumentCaptor.forClass(RequestDetails.class);
+		tableCapt = ArgumentCaptor.forClass(IBaseResource.class);
 		verify(myJpaInterceptor, times(1)).resourceCreated(detailsCapt.capture(), tableCapt.capture());
-		assertNotNull(tableCapt.getValue().getId());
-		assertEquals(id, tableCapt.getValue().getId());
+		assertNotNull(tableCapt.getValue().getIdElement().getIdPartAsLong());
+		assertEquals(id, tableCapt.getValue().getIdElement().getIdPartAsLong());
 
-		detailsCapt = ArgumentCaptor.forClass(ActionRequestDetails.class);
-		tableCapt = ArgumentCaptor.forClass(ResourceTable.class);
+		detailsCapt = ArgumentCaptor.forClass(RequestDetails.class);
+		tableCapt = ArgumentCaptor.forClass(IBaseResource.class);
 		verify(myJpaInterceptor, times(0)).resourceUpdated(detailsCapt.capture(), tableCapt.capture());
 
 		/*
@@ -90,8 +86,8 @@ public class FhirResourceDaoDstu3InterceptorTest extends BaseJpaDstu3Test {
 		Long id2 = myPatientDao.create(p, "Patient?family=PATIENT", mySrd).getId().getIdPartAsLong();
 		assertEquals(id, id2);
 
-		detailsCapt = ArgumentCaptor.forClass(ActionRequestDetails.class);
-		tableCapt = ArgumentCaptor.forClass(ResourceTable.class);
+		detailsCapt = ArgumentCaptor.forClass(RequestDetails.class);
+		tableCapt = ArgumentCaptor.forClass(IBaseResource.class);
 		verify(myJpaInterceptor, times(1)).resourceCreated(detailsCapt.capture(), tableCapt.capture());
 		verify(myJpaInterceptor, times(0)).resourceUpdated(detailsCapt.capture(), tableCapt.capture());
 
@@ -112,14 +108,14 @@ public class FhirResourceDaoDstu3InterceptorTest extends BaseJpaDstu3Test {
 
 		myPatientDao.delete(new IdType("Patient", id), mySrd);
 
-		ArgumentCaptor<ActionRequestDetails> detailsCapt;
-		ArgumentCaptor<ResourceTable> tableCapt;
+		ArgumentCaptor<RequestDetails> detailsCapt;
+		ArgumentCaptor<IBaseResource> tableCapt;
 
-		detailsCapt = ArgumentCaptor.forClass(ActionRequestDetails.class);
-		tableCapt = ArgumentCaptor.forClass(ResourceTable.class);
+		detailsCapt = ArgumentCaptor.forClass(RequestDetails.class);
+		tableCapt = ArgumentCaptor.forClass(IBaseResource.class);
 		verify(myJpaInterceptor, times(1)).resourceDeleted(detailsCapt.capture(), tableCapt.capture());
-		assertNotNull(tableCapt.getValue().getId());
-		assertEquals(id, tableCapt.getValue().getId());
+		assertNotNull(tableCapt.getValue().getIdElement().getIdPartAsLong());
+		assertEquals(id, tableCapt.getValue().getIdElement().getIdPartAsLong());
 
 	}
 
@@ -135,14 +131,14 @@ public class FhirResourceDaoDstu3InterceptorTest extends BaseJpaDstu3Test {
 		Long id2 = myPatientDao.update(p, mySrd).getId().getIdPartAsLong();
 		assertEquals(id, id2);
 
-		ArgumentCaptor<ActionRequestDetails> detailsCapt;
-		ArgumentCaptor<ResourceTable> tableCapt;
+		ArgumentCaptor<RequestDetails> detailsCapt;
+		ArgumentCaptor<IBaseResource> tableCapt;
 
-		detailsCapt = ArgumentCaptor.forClass(ActionRequestDetails.class);
-		tableCapt = ArgumentCaptor.forClass(ResourceTable.class);
+		detailsCapt = ArgumentCaptor.forClass(RequestDetails.class);
+		tableCapt = ArgumentCaptor.forClass(IBaseResource.class);
 		verify(myJpaInterceptor, times(1)).resourceUpdated(detailsCapt.capture(), tableCapt.capture());
-		assertNotNull(tableCapt.getValue().getId());
-		assertEquals(id, tableCapt.getValue().getId());
+		assertNotNull(tableCapt.getValue().getIdElement().getIdPartAsLong());
+		assertEquals(id, tableCapt.getValue().getIdElement().getIdPartAsLong());
 
 		/*
 		 * Now do a conditional update
@@ -154,11 +150,11 @@ public class FhirResourceDaoDstu3InterceptorTest extends BaseJpaDstu3Test {
 		id2 = myPatientDao.update(p, "Patient?family=PATIENT1", mySrd).getId().getIdPartAsLong();
 		assertEquals(id, id2);
 
-		detailsCapt = ArgumentCaptor.forClass(ActionRequestDetails.class);
-		tableCapt = ArgumentCaptor.forClass(ResourceTable.class);
+		detailsCapt = ArgumentCaptor.forClass(RequestDetails.class);
+		tableCapt = ArgumentCaptor.forClass(IBaseResource.class);
 		verify(myJpaInterceptor, times(1)).resourceCreated(detailsCapt.capture(), tableCapt.capture());
 		verify(myJpaInterceptor, times(2)).resourceUpdated(detailsCapt.capture(), tableCapt.capture());
-		assertEquals(id, tableCapt.getAllValues().get(2).getId());
+		assertEquals(id, tableCapt.getAllValues().get(2).getIdElement().getIdPartAsLong());
 
 		/*
 		 * Now do a conditional update where none will match (so this is actually a create)
@@ -169,11 +165,11 @@ public class FhirResourceDaoDstu3InterceptorTest extends BaseJpaDstu3Test {
 		id2 = myPatientDao.update(p, "Patient?family=ZZZ", mySrd).getId().getIdPartAsLong();
 		assertNotEquals(id, id2);
 
-		detailsCapt = ArgumentCaptor.forClass(ActionRequestDetails.class);
-		tableCapt = ArgumentCaptor.forClass(ResourceTable.class);
+		detailsCapt = ArgumentCaptor.forClass(RequestDetails.class);
+		tableCapt = ArgumentCaptor.forClass(IBaseResource.class);
 		verify(myJpaInterceptor, times(2)).resourceUpdated(detailsCapt.capture(), tableCapt.capture());
 		verify(myJpaInterceptor, times(2)).resourceCreated(detailsCapt.capture(), tableCapt.capture());
-		assertEquals(id2, tableCapt.getAllValues().get(3).getId());
+		assertEquals(id2, tableCapt.getAllValues().get(3).getIdElement().getIdPartAsLong());
 
 	}
 
@@ -198,6 +194,55 @@ public class FhirResourceDaoDstu3InterceptorTest extends BaseJpaDstu3Test {
 		
 		verify(myRequestOperationCallback, times(1)).resourceCreated(any(IBaseResource.class));
 		verifyNoMoreInteractions(myRequestOperationCallback);
+	}
+
+	@Test
+	public void testServerOperationCreate() {
+		verify(myServerOperationInterceptor, times(0)).resourceCreated(Mockito.isNull(RequestDetails.class), any(IBaseResource.class));
+
+		Patient p = new Patient();
+		p.addName().setFamily("PATIENT");
+		IIdType id = myPatientDao.create(p, (RequestDetails)null).getId();
+		assertEquals(1L, id.getVersionIdPartAsLong().longValue());
+		
+		verify(myServerOperationInterceptor, times(1)).resourceCreated(Mockito.isNull(RequestDetails.class), any(IBaseResource.class));
+	}
+
+	@SuppressWarnings("deprecation")
+	@Test
+	public void testServerOperationUpdate() {
+		verify(myServerOperationInterceptor, times(0)).resourceCreated(Mockito.isNull(RequestDetails.class), any(IBaseResource.class));
+		verify(myServerOperationInterceptor, times(0)).resourceUpdated(Mockito.isNull(RequestDetails.class), any(IBaseResource.class));
+		verify(myServerOperationInterceptor, times(0)).resourceUpdated(Mockito.isNull(RequestDetails.class), any(IBaseResource.class), any(IBaseResource.class));
+
+		Patient p = new Patient();
+		p.addName().setFamily("PATIENT");
+		IIdType id = myPatientDao.create(p, (RequestDetails)null).getId();
+		assertEquals(1L, id.getVersionIdPartAsLong().longValue());
+		
+		p.addName().setFamily("2");
+		myPatientDao.update(p);
+		
+		verify(myServerOperationInterceptor, times(1)).resourceCreated(Mockito.isNull(RequestDetails.class), any(IBaseResource.class));
+		verify(myServerOperationInterceptor, times(1)).resourceUpdated(Mockito.isNull(RequestDetails.class), any(IBaseResource.class));
+		verify(myServerOperationInterceptor, times(1)).resourceUpdated(Mockito.isNull(RequestDetails.class), any(IBaseResource.class), any(IBaseResource.class));
+	}
+
+	@Test
+	public void testServerOperationDelete() {
+		verify(myServerOperationInterceptor, times(0)).resourceCreated(Mockito.isNull(RequestDetails.class), any(IBaseResource.class));
+		verify(myServerOperationInterceptor, times(0)).resourceDeleted(Mockito.isNull(RequestDetails.class), any(IBaseResource.class));
+
+		Patient p = new Patient();
+		p.addName().setFamily("PATIENT");
+		IIdType id = myPatientDao.create(p, (RequestDetails)null).getId();
+		assertEquals(1L, id.getVersionIdPartAsLong().longValue());
+		
+		p.addName().setFamily("2");
+		myPatientDao.delete(p.getIdElement().toUnqualifiedVersionless());
+		
+		verify(myServerOperationInterceptor, times(1)).resourceCreated(Mockito.isNull(RequestDetails.class), any(IBaseResource.class));
+		verify(myServerOperationInterceptor, times(1)).resourceDeleted(Mockito.isNull(RequestDetails.class), any(IBaseResource.class));
 	}
 
 	@Test
@@ -369,10 +414,10 @@ public class FhirResourceDaoDstu3InterceptorTest extends BaseJpaDstu3Test {
 		doAnswer(new Answer<Void>() {
 			@Override
 			public Void answer(InvocationOnMock theInvocation) throws Throwable {
-				IBaseResource res = (IBaseResource) theInvocation.getArguments()[0];
+				IBaseResource res = (IBaseResource) theInvocation.getArguments()[1];
 				assertEquals("Patient/" + id + "/_history/2", res.getIdElement().getValue());
 				return null;
-			}}).when(myRequestOperationCallback).resourceUpdated(any(IBaseResource.class));
+			}}).when(myRequestOperationCallback).resourceUpdated(any(IBaseResource.class), any(IBaseResource.class));
 
 		Bundle xactBundle = new Bundle();
 		xactBundle.setType(BundleType.TRANSACTION);
@@ -388,6 +433,7 @@ public class FhirResourceDaoDstu3InterceptorTest extends BaseJpaDstu3Test {
 		assertEquals(2L, newId.getVersionIdPartAsLong().longValue());
 
 		verify(myRequestOperationCallback, times(1)).resourceUpdated(any(IBaseResource.class));
+		verify(myRequestOperationCallback, times(1)).resourceUpdated(any(IBaseResource.class), any(IBaseResource.class));
 		verify(myRequestOperationCallback, times(1)).resourceCreated(any(IBaseResource.class));
 		verifyNoMoreInteractions(myRequestOperationCallback);
 	}
@@ -402,9 +448,11 @@ public class FhirResourceDaoDstu3InterceptorTest extends BaseJpaDstu3Test {
 			@Override
 			public Void answer(InvocationOnMock theInvocation) throws Throwable {
 				IBaseResource res = (IBaseResource) theInvocation.getArguments()[0];
+				assertEquals("Patient/" + id + "/_history/1", res.getIdElement().getValue());
+				res = (IBaseResource) theInvocation.getArguments()[1];
 				assertEquals("Patient/" + id + "/_history/2", res.getIdElement().getValue());
 				return null;
-			}}).when(myRequestOperationCallback).resourceUpdated(any(IBaseResource.class));
+			}}).when(myRequestOperationCallback).resourceUpdated(any(IBaseResource.class), any(IBaseResource.class));
 
 		p = new Patient();
 		p.setId(new IdType("Patient/" + id));
@@ -413,6 +461,7 @@ public class FhirResourceDaoDstu3InterceptorTest extends BaseJpaDstu3Test {
 		assertEquals(2L, newId.getVersionIdPartAsLong().longValue());
 
 		verify(myRequestOperationCallback, times(1)).resourceUpdated(any(IBaseResource.class));
+		verify(myRequestOperationCallback, times(1)).resourceUpdated(any(IBaseResource.class), any(IBaseResource.class));
 		verify(myRequestOperationCallback, times(1)).resourceCreated(any(IBaseResource.class));
 		verifyNoMoreInteractions(myRequestOperationCallback);
 	}

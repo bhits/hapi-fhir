@@ -10,7 +10,7 @@ package ca.uhn.fhir.jpa.entity;
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  * 
- *      http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.apache.org/licenses/LICENSE-2.0
  * 
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -32,6 +32,7 @@ import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
 import javax.persistence.OneToMany;
+import javax.persistence.SequenceGenerator;
 import javax.persistence.Table;
 import javax.persistence.UniqueConstraint;
 
@@ -44,7 +45,9 @@ import ca.uhn.fhir.model.api.Tag;
 
 //@formatter:on
 @Entity
-@Table(name = "HFJ_TAG_DEF", uniqueConstraints = { @UniqueConstraint(columnNames = { "TAG_TYPE", "TAG_SYSTEM", "TAG_CODE" }) })
+@Table(name = "HFJ_TAG_DEF", uniqueConstraints = {
+		@UniqueConstraint(name = "IDX_TAGDEF_TYPESYSCODE", columnNames = { "TAG_TYPE", "TAG_SYSTEM", "TAG_CODE" })
+})
 //@formatter:off
 public class TagDefinition implements Serializable {
 
@@ -57,7 +60,8 @@ public class TagDefinition implements Serializable {
 	private String myDisplay;
 
 	@Id
-	@GeneratedValue(strategy = GenerationType.AUTO)
+	@GeneratedValue(strategy = GenerationType.AUTO, generator="SEQ_TAGDEF_ID")
+	@SequenceGenerator(name = "SEQ_TAGDEF_ID", sequenceName = "SEQ_TAGDEF_ID")
 	@Column(name = "TAG_ID")
 	private Long myId;
 
@@ -73,6 +77,8 @@ public class TagDefinition implements Serializable {
 	@Column(name="TAG_TYPE", nullable=false)
 	@Enumerated(EnumType.ORDINAL)
 	private TagTypeEnum myTagType;
+
+	private Integer myHashCode;
 
 	public TagDefinition() {
 	}
@@ -106,6 +112,7 @@ public class TagDefinition implements Serializable {
 
 	public void setCode(String theCode) {
 		myCode = theCode;
+		myHashCode = null;
 	}
 
 	public void setDisplay(String theDisplay) {
@@ -114,10 +121,12 @@ public class TagDefinition implements Serializable {
 
 	public void setSystem(String theSystem) {
 		mySystem = theSystem;
+		myHashCode = null;
 	}
 
 	public void setTagType(TagTypeEnum theTagType) {
 		myTagType = theTagType;
+		myHashCode = null;
 	}
 
 	public Tag toTag() {
@@ -137,15 +146,28 @@ public class TagDefinition implements Serializable {
 		}
 		TagDefinition other = (TagDefinition) obj;
 		EqualsBuilder b = new EqualsBuilder();
-		b.append(myId, other.myId);
+		
+		if (myId != null && other.myId != null) {
+			b.append(myId, other.myId);
+		} else {
+			b.append(myTagType, other.myTagType);
+			b.append(mySystem, other.mySystem);
+			b.append(myCode, other.myCode);
+		}
+		
 		return b.isEquals();
 	}
 	
 	@Override
 	public int hashCode() {
-		HashCodeBuilder b = new HashCodeBuilder();
-		b.append(myId);
-		return b.toHashCode();
+		if (myHashCode == null) {
+			HashCodeBuilder b = new HashCodeBuilder();
+			b.append(myTagType);
+			b.append(mySystem);
+			b.append(myCode);
+			myHashCode = b.toHashCode();
+		}
+		return myHashCode;
 	}
 
 	@Override

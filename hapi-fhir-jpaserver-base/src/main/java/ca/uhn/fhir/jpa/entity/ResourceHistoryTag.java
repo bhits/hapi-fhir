@@ -22,30 +22,25 @@ package ca.uhn.fhir.jpa.entity;
 
 import java.io.Serializable;
 
-import javax.persistence.Column;
-import javax.persistence.Embeddable;
-import javax.persistence.Entity;
-import javax.persistence.GeneratedValue;
-import javax.persistence.GenerationType;
-import javax.persistence.Id;
-import javax.persistence.JoinColumn;
-import javax.persistence.ManyToOne;
-import javax.persistence.Table;
+import javax.persistence.*;
 
 @Embeddable
 @Entity
-@Table(name = "HFJ_HISTORY_TAG")
+@Table(name = "HFJ_HISTORY_TAG", uniqueConstraints= {
+		@UniqueConstraint(name="IDX_RESHISTTAG_TAGID", columnNames= {"RES_VER_PID","TAG_ID"})
+})
 public class ResourceHistoryTag extends BaseTag implements Serializable {
 
 	private static final long serialVersionUID = 1L;
 	
-	@GeneratedValue(strategy=GenerationType.AUTO)
+	@SequenceGenerator(name = "SEQ_HISTORYTAG_ID", sequenceName = "SEQ_HISTORYTAG_ID")
+	@GeneratedValue(strategy = GenerationType.AUTO, generator = "SEQ_HISTORYTAG_ID")
 	@Id
 	@Column(name = "PID")
 	private Long myId;
 	
 	@ManyToOne()
-	@JoinColumn(name="RES_VER_PID", referencedColumnName="PID", nullable=false)
+	@JoinColumn(name="RES_VER_PID", referencedColumnName="PID", nullable=false, foreignKey=@ForeignKey(name="FK_HISTORYTAG_HISTORY"))
 	private ResourceHistoryTable myResourceHistory;
 
 	@Column(name = "RES_TYPE", length = ResourceTable.RESTYPE_LEN, nullable=false)

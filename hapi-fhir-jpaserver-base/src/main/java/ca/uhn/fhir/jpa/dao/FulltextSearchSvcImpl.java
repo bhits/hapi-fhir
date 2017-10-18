@@ -22,30 +22,21 @@ package ca.uhn.fhir.jpa.dao;
 
 import static org.apache.commons.lang3.StringUtils.isNotBlank;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
-import javax.persistence.EntityManager;
-import javax.persistence.PersistenceContext;
-import javax.persistence.PersistenceContextType;
+import javax.persistence.*;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.Validate;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.highlight.*;
 import org.apache.lucene.search.highlight.Formatter;
-import org.apache.lucene.search.highlight.Highlighter;
-import org.apache.lucene.search.highlight.QueryScorer;
-import org.apache.lucene.search.highlight.Scorer;
-import org.apache.lucene.search.highlight.TokenGroup;
 import org.hibernate.search.jpa.FullTextEntityManager;
 import org.hibernate.search.jpa.FullTextQuery;
 import org.hibernate.search.query.dsl.BooleanJunction;
 import org.hibernate.search.query.dsl.QueryBuilder;
+import org.hl7.fhir.dstu3.model.BaseResource;
 import org.hl7.fhir.instance.model.api.IBaseResource;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -54,9 +45,8 @@ import com.google.common.collect.Sets;
 
 import ca.uhn.fhir.jpa.entity.ResourceTable;
 import ca.uhn.fhir.model.api.IQueryParameterType;
-import ca.uhn.fhir.model.dstu.resource.BaseResource;
+import ca.uhn.fhir.rest.api.Constants;
 import ca.uhn.fhir.rest.param.StringParam;
-import ca.uhn.fhir.rest.server.Constants;
 import ca.uhn.fhir.rest.server.exceptions.InternalErrorException;
 import ca.uhn.fhir.rest.server.exceptions.InvalidRequestException;
 
@@ -66,6 +56,13 @@ public class FulltextSearchSvcImpl extends BaseHapiFhirDao<IBaseResource> implem
 	@PersistenceContext(type = PersistenceContextType.TRANSACTION)
 	private EntityManager myEntityManager;
 
+	/**
+	 * Constructor
+	 */
+	public FulltextSearchSvcImpl() {
+		super();
+	}
+	
 	private void addTextSearch(QueryBuilder theQueryBuilder, BooleanJunction<?> theBoolean, List<List<? extends IQueryParameterType>> theTerms, String theFieldName, String theFieldNameEdgeNGram, String theFieldNameNGram) {
 		if (theTerms == null) {
 			return;
@@ -240,7 +237,6 @@ public class FulltextSearchSvcImpl extends BaseHapiFhirDao<IBaseResource> implem
 
 		QueryBuilder qb = em.getSearchFactory().buildQueryBuilder().forEntity(ResourceTable.class).get();
 
-		//@formatter:off
 		Query textQuery = qb
 				.phrase()
 				.withSlop(2)
@@ -254,7 +250,6 @@ public class FulltextSearchSvcImpl extends BaseHapiFhirDao<IBaseResource> implem
 				.must(qb.keyword().onField("myResourceLinks.myTargetResourcePid").matching(pid).createQuery())
 				.must(textQuery)
 				.createQuery();
-		//@formatter:on
 
 		FullTextQuery ftq = em.createFullTextQuery(query, ResourceTable.class);
 		ftq.setProjection("myContentText");
@@ -282,14 +277,6 @@ public class FulltextSearchSvcImpl extends BaseHapiFhirDao<IBaseResource> implem
 				formatter.setAnalyzer("myContentTextEdgeNGram");
 				highlighter.getBestFragments(analyzer.tokenStream("myContentTextEdgeNGram", nextValue), nextValue, 10);
 
-				// formatter.setAnalyzer("myContentText");
-				// highlighter.getBestFragments(analyzer.tokenStream("myContentText", nextValue), nextValue, 10);
-				// formatter.setAnalyzer("myContentTextNGram");
-				// highlighter.getBestFragments(analyzer.tokenStream("myContentTextNGram", nextValue), nextValue, 10);
-				// formatter.setAnalyzer("myContentTextEdgeNGram");
-				// highlighter.getBestFragments(analyzer.tokenStream("myContentTextEdgeNGram", nextValue), nextValue, 10);
-				// formatter.setAnalyzer("myContentTextPhonetic");
-				// highlighter.getBestFragments(analyzer.tokenStream("myContentTextPhonetic", nextValue), nextValue, 10);
 			} catch (Exception e) {
 				throw new InternalErrorException(e);
 			}

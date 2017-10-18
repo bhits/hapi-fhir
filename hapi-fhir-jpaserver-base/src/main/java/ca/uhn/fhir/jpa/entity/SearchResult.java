@@ -34,12 +34,10 @@ import javax.persistence.SequenceGenerator;
 import javax.persistence.Table;
 import javax.persistence.UniqueConstraint;
 
-//@formatter:off
 @Entity
 @Table(name = "HFJ_SEARCH_RESULT", uniqueConstraints= {
 	@UniqueConstraint(name="IDX_SEARCHRES_ORDER", columnNames= {"SEARCH_PID", "SEARCH_ORDER"})
 })
-//@formatter:on
 public class SearchResult implements Serializable {
 
 	private static final long serialVersionUID = 1L;
@@ -106,7 +104,8 @@ public class SearchResult implements Serializable {
 		myOrder = theOrder;
 	}
 
-	public void setResourcePid(Long theResourcePid) {
+	public SearchResult setResourcePid(Long theResourcePid) {
 		myResourcePid = theResourcePid;
+		return this;
 	}
 }

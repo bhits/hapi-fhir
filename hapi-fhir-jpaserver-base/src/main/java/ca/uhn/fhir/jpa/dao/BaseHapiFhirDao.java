@@ -1,6 +1,5 @@
 package ca.uhn.fhir.jpa.dao;
 
-import static org.apache.commons.lang3.StringUtils.defaultIfBlank;
 /*
  * #%L
  * HAPI FHIR JPA Server
@@ -20,105 +19,19 @@ import static org.apache.commons.lang3.StringUtils.defaultIfBlank;
  * limitations under the License.
  * #L%
  */
-import static org.apache.commons.lang3.StringUtils.isBlank;
-import static org.apache.commons.lang3.StringUtils.isNotBlank;
 
-import java.io.UnsupportedEncodingException;
-import java.text.Normalizer;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
-
-import javax.persistence.EntityManager;
-import javax.persistence.NoResultException;
-import javax.persistence.PersistenceContext;
-import javax.persistence.PersistenceContextType;
-import javax.persistence.Tuple;
-import javax.persistence.TypedQuery;
-import javax.persistence.criteria.CriteriaBuilder;
-import javax.persistence.criteria.CriteriaQuery;
-import javax.persistence.criteria.Predicate;
-import javax.persistence.criteria.Root;
-import javax.xml.stream.events.Characters;
-import javax.xml.stream.events.XMLEvent;
-
-import org.apache.commons.lang3.NotImplementedException;
-import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.Validate;
-import org.apache.http.NameValuePair;
-import org.apache.http.client.utils.URLEncodedUtils;
-import org.hl7.fhir.dstu3.model.Bundle.HTTPVerb;
-import org.hl7.fhir.dstu3.model.IdType;
-import org.hl7.fhir.dstu3.model.StringType;
-import org.hl7.fhir.instance.model.api.IAnyResource;
-import org.hl7.fhir.instance.model.api.IBase;
-import org.hl7.fhir.instance.model.api.IBaseBundle;
-import org.hl7.fhir.instance.model.api.IBaseCoding;
-import org.hl7.fhir.instance.model.api.IBaseOperationOutcome;
-import org.hl7.fhir.instance.model.api.IBaseReference;
-import org.hl7.fhir.instance.model.api.IBaseResource;
-import org.hl7.fhir.instance.model.api.IDomainResource;
-import org.hl7.fhir.instance.model.api.IIdType;
-import org.hl7.fhir.instance.model.api.IPrimitiveType;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.transaction.PlatformTransactionManager;
-
-import com.google.common.base.Charsets;
-import com.google.common.collect.ArrayListMultimap;
-
-import ca.uhn.fhir.context.BaseRuntimeChildDefinition;
-import ca.uhn.fhir.context.BaseRuntimeElementCompositeDefinition;
-import ca.uhn.fhir.context.BaseRuntimeElementDefinition;
-import ca.uhn.fhir.context.ConfigurationException;
-import ca.uhn.fhir.context.FhirContext;
-import ca.uhn.fhir.context.FhirVersionEnum;
-import ca.uhn.fhir.context.RuntimeChildResourceDefinition;
-import ca.uhn.fhir.context.RuntimeResourceDefinition;
-import ca.uhn.fhir.context.RuntimeSearchParam;
-import ca.uhn.fhir.jpa.dao.data.IForcedIdDao;
-import ca.uhn.fhir.jpa.dao.data.IResourceHistoryTableDao;
-import ca.uhn.fhir.jpa.dao.data.ISearchDao;
-import ca.uhn.fhir.jpa.dao.data.ISearchResultDao;
-import ca.uhn.fhir.jpa.entity.BaseHasResource;
-import ca.uhn.fhir.jpa.entity.BaseResourceIndexedSearchParam;
-import ca.uhn.fhir.jpa.entity.BaseTag;
-import ca.uhn.fhir.jpa.entity.ForcedId;
-import ca.uhn.fhir.jpa.entity.ResourceEncodingEnum;
-import ca.uhn.fhir.jpa.entity.ResourceHistoryTable;
-import ca.uhn.fhir.jpa.entity.ResourceHistoryTag;
-import ca.uhn.fhir.jpa.entity.ResourceIndexedSearchParamCoords;
-import ca.uhn.fhir.jpa.entity.ResourceIndexedSearchParamDate;
-import ca.uhn.fhir.jpa.entity.ResourceIndexedSearchParamNumber;
-import ca.uhn.fhir.jpa.entity.ResourceIndexedSearchParamQuantity;
-import ca.uhn.fhir.jpa.entity.ResourceIndexedSearchParamString;
-import ca.uhn.fhir.jpa.entity.ResourceIndexedSearchParamToken;
-import ca.uhn.fhir.jpa.entity.ResourceIndexedSearchParamUri;
-import ca.uhn.fhir.jpa.entity.ResourceLink;
-import ca.uhn.fhir.jpa.entity.ResourceTable;
-import ca.uhn.fhir.jpa.entity.ResourceTag;
-import ca.uhn.fhir.jpa.entity.Search;
-import ca.uhn.fhir.jpa.entity.SearchTypeEnum;
-import ca.uhn.fhir.jpa.entity.TagDefinition;
-import ca.uhn.fhir.jpa.entity.TagTypeEnum;
+import ca.uhn.fhir.context.*;
+import ca.uhn.fhir.jpa.dao.data.*;
+import ca.uhn.fhir.jpa.entity.*;
+import ca.uhn.fhir.jpa.search.ISearchCoordinatorSvc;
+import ca.uhn.fhir.jpa.search.JpaRuntimeSearchParam;
 import ca.uhn.fhir.jpa.search.PersistedJpaBundleProvider;
+import ca.uhn.fhir.jpa.sp.ISearchParamPresenceSvc;
+import ca.uhn.fhir.jpa.term.IHapiTerminologySvc;
 import ca.uhn.fhir.jpa.util.DeleteConflict;
-import ca.uhn.fhir.model.api.IQueryParameterAnd;
-import ca.uhn.fhir.model.api.IQueryParameterType;
-import ca.uhn.fhir.model.api.IResource;
-import ca.uhn.fhir.model.api.ResourceMetadataKeyEnum;
-import ca.uhn.fhir.model.api.Tag;
-import ca.uhn.fhir.model.api.TagList;
+import ca.uhn.fhir.model.api.*;
 import ca.uhn.fhir.model.base.composite.BaseCodingDt;
 import ca.uhn.fhir.model.base.composite.BaseResourceReferenceDt;
-import ca.uhn.fhir.model.dstu.resource.BaseResource;
 import ca.uhn.fhir.model.primitive.IdDt;
 import ca.uhn.fhir.model.primitive.InstantDt;
 import ca.uhn.fhir.model.primitive.StringDt;
@@ -126,54 +39,69 @@ import ca.uhn.fhir.model.primitive.XhtmlDt;
 import ca.uhn.fhir.model.valueset.BundleEntryTransactionMethodEnum;
 import ca.uhn.fhir.parser.DataFormatException;
 import ca.uhn.fhir.parser.IParser;
+import ca.uhn.fhir.parser.LenientErrorHandler;
+import ca.uhn.fhir.rest.api.Constants;
+import ca.uhn.fhir.rest.api.QualifiedParamList;
 import ca.uhn.fhir.rest.api.RestOperationTypeEnum;
-import ca.uhn.fhir.rest.method.MethodUtil;
-import ca.uhn.fhir.rest.method.QualifiedParamList;
-import ca.uhn.fhir.rest.method.RestSearchParameterTypeEnum;
-import ca.uhn.fhir.rest.param.DateRangeParam;
-import ca.uhn.fhir.rest.param.StringAndListParam;
-import ca.uhn.fhir.rest.param.StringParam;
-import ca.uhn.fhir.rest.param.TokenAndListParam;
-import ca.uhn.fhir.rest.param.TokenParam;
-import ca.uhn.fhir.rest.param.UriAndListParam;
-import ca.uhn.fhir.rest.param.UriParam;
-import ca.uhn.fhir.rest.server.Constants;
-import ca.uhn.fhir.rest.server.IBundleProvider;
-import ca.uhn.fhir.rest.server.exceptions.InternalErrorException;
-import ca.uhn.fhir.rest.server.exceptions.InvalidRequestException;
-import ca.uhn.fhir.rest.server.exceptions.PreconditionFailedException;
-import ca.uhn.fhir.rest.server.exceptions.ResourceNotFoundException;
-import ca.uhn.fhir.rest.server.exceptions.ResourceVersionConflictException;
-import ca.uhn.fhir.rest.server.exceptions.UnprocessableEntityException;
+import ca.uhn.fhir.rest.api.RestSearchParameterTypeEnum;
+import ca.uhn.fhir.rest.api.server.IBundleProvider;
+import ca.uhn.fhir.rest.param.*;
+import ca.uhn.fhir.rest.server.exceptions.*;
 import ca.uhn.fhir.rest.server.interceptor.IServerInterceptor;
 import ca.uhn.fhir.rest.server.interceptor.IServerInterceptor.ActionRequestDetails;
 import ca.uhn.fhir.rest.server.servlet.ServletRequestDetails;
-import ca.uhn.fhir.util.CoverageIgnore;
-import ca.uhn.fhir.util.FhirTerser;
-import ca.uhn.fhir.util.OperationOutcomeUtil;
+import ca.uhn.fhir.util.*;
+import com.google.common.base.Charsets;
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.Sets;
+import com.google.common.hash.HashFunction;
+import com.google.common.hash.Hashing;
+import org.apache.commons.lang3.NotImplementedException;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.Validate;
+import org.apache.http.NameValuePair;
+import org.apache.http.client.utils.URLEncodedUtils;
+import org.hl7.fhir.instance.model.api.*;
+import org.hl7.fhir.r4.model.BaseResource;
+import org.hl7.fhir.r4.model.Bundle.HTTPVerb;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.transaction.PlatformTransactionManager;
+
+import javax.persistence.*;
+import javax.persistence.criteria.CriteriaBuilder;
+import javax.persistence.criteria.CriteriaQuery;
+import javax.persistence.criteria.Predicate;
+import javax.persistence.criteria.Root;
+import javax.xml.stream.events.Characters;
+import javax.xml.stream.events.XMLEvent;
+import java.io.UnsupportedEncodingException;
+import java.text.Normalizer;
+import java.util.*;
+import java.util.Map.Entry;
+
+import static org.apache.commons.lang3.StringUtils.*;
 
 public abstract class BaseHapiFhirDao<T extends IBaseResource> implements IDao {
 
 	public static final long INDEX_STATUS_INDEXED = Long.valueOf(1L);
-
 	public static final long INDEX_STATUS_INDEXING_FAILED = Long.valueOf(2L);
 	public static final String NS_JPA_PROFILE = "https://github.com/jamesagnew/hapi-fhir/ns/jpa/profile";
 	public static final String OO_SEVERITY_ERROR = "error";
 	public static final String OO_SEVERITY_INFO = "information";
 	public static final String OO_SEVERITY_WARN = "warning";
-	private static final org.slf4j.Logger ourLog = org.slf4j.LoggerFactory.getLogger(BaseHapiFhirDao.class);
-	private static final Map<FhirVersionEnum, FhirContext> ourRetrievalContexts = new HashMap<FhirVersionEnum, FhirContext>();
-
-	private static final String PROCESSING_SUB_REQUEST = "BaseHapiFhirDao.processingSubRequest";
+	public static final String UCUM_NS = "http://unitsofmeasure.org";
+	static final Set<String> EXCLUDE_ELEMENTS_IN_ENCODED;
 	/**
-	 * These are parameters which are supported by {@link BaseHapiFhirResourceDao#searchForIds(Map)}
+	 * These are parameters which are supported by {@link BaseHapiFhirResourceDao#searchForIds(SearchParameterMap)}
 	 */
 	static final Map<String, Class<? extends IQueryParameterAnd<?>>> RESOURCE_META_AND_PARAMS;
 	/**
-	 * These are parameters which are supported by {@link BaseHapiFhirResourceDao#searchForIds(Map)}
+	 * These are parameters which are supported by {@link BaseHapiFhirResourceDao#searchForIds(SearchParameterMap)}
 	 */
 	static final Map<String, Class<? extends IQueryParameterType>> RESOURCE_META_PARAMS;
-	public static final String UCUM_NS = "http://unitsofmeasure.org";
+	private static final org.slf4j.Logger ourLog = org.slf4j.LoggerFactory.getLogger(BaseHapiFhirDao.class);
+	private static final Map<FhirVersionEnum, FhirContext> ourRetrievalContexts = new HashMap<FhirVersionEnum, FhirContext>();
+	private static final String PROCESSING_SUB_REQUEST = "BaseHapiFhirDao.processingSubRequest";
 
 	static {
 		Map<String, Class<? extends IQueryParameterType>> resourceMetaParams = new HashMap<String, Class<? extends IQueryParameterType>>();
@@ -190,40 +118,49 @@ public abstract class BaseHapiFhirDao<T extends IBaseResource> implements IDao {
 		resourceMetaAndParams.put(Constants.PARAM_SECURITY, TokenAndListParam.class);
 		RESOURCE_META_PARAMS = Collections.unmodifiableMap(resourceMetaParams);
 		RESOURCE_META_AND_PARAMS = Collections.unmodifiableMap(resourceMetaAndParams);
-	}
-	@Autowired(required = true)
-	private DaoConfig myConfig;
 
-	private FhirContext myContext;
+		HashSet<String> excludeElementsInEncoded = new HashSet<String>();
+		excludeElementsInEncoded.add("id");
+		excludeElementsInEncoded.add("meta");
+		EXCLUDE_ELEMENTS_IN_ENCODED = Collections.unmodifiableSet(excludeElementsInEncoded);
+	}
 
 	@PersistenceContext(type = PersistenceContextType.TRANSACTION)
 	protected EntityManager myEntityManager;
-
 	@Autowired
 	protected IForcedIdDao myForcedIdDao;
-
+	@Autowired(required = false)
+	protected IFulltextSearchSvc myFulltextSearchSvc;
+	@Autowired()
+	protected IResourceIndexedSearchParamUriDao myResourceIndexedSearchParamUriDao;
+	@Autowired
+	protected ISearchCoordinatorSvc mySearchCoordinatorSvc;
+	@Autowired
+	protected ISearchParamRegistry mySerarchParamRegistry;
+	@Autowired()
+	protected IHapiTerminologySvc myTerminologySvc;
+	@Autowired(required = true)
+	private DaoConfig myConfig;
+	private FhirContext myContext;
 	@Autowired
 	private PlatformTransactionManager myPlatformTransactionManager;
-
 	@Autowired
 	private List<IFhirResourceDao<?>> myResourceDaos;
-
 	@Autowired
 	private IResourceHistoryTableDao myResourceHistoryTableDao;
-
 	private Map<Class<? extends IBaseResource>, IFhirResourceDao<?>> myResourceTypeToDao;
-
 	@Autowired
 	private ISearchDao mySearchDao;
-
 	@Autowired
 	private ISearchParamExtractor mySearchParamExtractor;
-
+	@Autowired
+	private ISearchParamPresenceSvc mySearchParamPresenceSvc;
 	@Autowired
 	private ISearchParamRegistry mySearchParamRegistry;
-
 	@Autowired
 	private ISearchResultDao mySearchResultDao;
+	@Autowired
+	private IResourceIndexedCompositeStringUniqueDao myResourceIndexedCompositeStringUniqueDao;
 
 	protected void clearRequestAsProcessingSubRequest(ServletRequestDetails theRequestDetails) {
 		if (theRequestDetails != null) {
@@ -251,18 +188,100 @@ public abstract class BaseHapiFhirDao<T extends IBaseResource> implements IDao {
 		return InstantDt.withCurrentTime();
 	}
 
+	private Set<ResourceIndexedCompositeStringUnique> extractCompositeStringUniques(ResourceTable theEntity, Set<ResourceIndexedSearchParamString> theStringParams, Set<ResourceIndexedSearchParamToken> theTokenParams, Set<ResourceIndexedSearchParamNumber> theNumberParams, Set<ResourceIndexedSearchParamQuantity> theQuantityParams, Set<ResourceIndexedSearchParamDate> theDateParams, Set<ResourceIndexedSearchParamUri> theUriParams, Set<ResourceLink> theLinks) {
+		Set<ResourceIndexedCompositeStringUnique> compositeStringUniques;
+		compositeStringUniques = new HashSet<>();
+		List<JpaRuntimeSearchParam> uniqueSearchParams = mySearchParamRegistry.getActiveUniqueSearchParams(theEntity.getResourceType());
+		for (JpaRuntimeSearchParam next : uniqueSearchParams) {
+
+			List<List<String>> partsChoices = new ArrayList<>();
+
+			for (RuntimeSearchParam nextCompositeOf : next.getCompositeOf()) {
+				Set<? extends BaseResourceIndexedSearchParam> paramsListForCompositePart = null;
+				Set<ResourceLink> linksForCompositePart = null;
+				switch (nextCompositeOf.getParamType()) {
+					case NUMBER:
+						paramsListForCompositePart = theNumberParams;
+						break;
+					case DATE:
+						paramsListForCompositePart = theDateParams;
+						break;
+					case STRING:
+						paramsListForCompositePart = theStringParams;
+						break;
+					case TOKEN:
+						paramsListForCompositePart = theTokenParams;
+						break;
+					case REFERENCE:
+						linksForCompositePart = theLinks;
+						break;
+					case QUANTITY:
+						paramsListForCompositePart = theQuantityParams;
+						break;
+					case URI:
+						paramsListForCompositePart = theUriParams;
+						break;
+					case COMPOSITE:
+					case HAS:
+						break;
+				}
+
+				ArrayList<String> nextChoicesList = new ArrayList<>();
+				partsChoices.add(nextChoicesList);
+
+				String key = UrlUtil.escape(nextCompositeOf.getName());
+				if (paramsListForCompositePart != null) {
+					for (BaseResourceIndexedSearchParam nextParam : paramsListForCompositePart) {
+						if (nextParam.getParamName().equals(nextCompositeOf.getName())) {
+							IQueryParameterType nextParamAsClientParam = nextParam.toQueryParameterType();
+							String value = nextParamAsClientParam.getValueAsQueryToken(getContext());
+							if (isNotBlank(value)) {
+								value = UrlUtil.escape(value);
+								nextChoicesList.add(key + "=" + value);
+							}
+						}
+					}
+				}
+				if (linksForCompositePart != null) {
+					for (ResourceLink nextLink : linksForCompositePart) {
+						String value = nextLink.getTargetResource().getIdDt().toUnqualifiedVersionless().getValue();
+						if (isNotBlank(value)) {
+							value = UrlUtil.escape(value);
+							nextChoicesList.add(key + "=" + value);
+						}
+					}
+				}
+			}
+
+			Set<String> queryStringsToPopulate = extractCompositeStringUniquesValueChains(theEntity.getResourceType(), partsChoices);
+
+			for (String nextQueryString : queryStringsToPopulate) {
+				if (isNotBlank(nextQueryString)) {
+					compositeStringUniques.add(new ResourceIndexedCompositeStringUnique(theEntity, nextQueryString));
+				}
+			}
+		}
+
+		return compositeStringUniques;
+	}
+
+	/**
+	 * @return Returns a set containing all of the parameter names that
+	 * were found to have a value
+	 */
 	@SuppressWarnings("unchecked")
-	protected void extractResourceLinks(ResourceTable theEntity, IBaseResource theResource, Set<ResourceLink> theLinks, Date theUpdateTime) {
+	protected Set<String> extractResourceLinks(ResourceTable theEntity, IBaseResource theResource, Set<ResourceLink> theLinks, Date theUpdateTime) {
+		HashSet<String> retVal = new HashSet<>();
 
 		/*
 		 * For now we don't try to load any of the links in a bundle if it's the actual bundle we're storing..
 		 */
 		if (theResource instanceof IBaseBundle) {
-			return;
+			return Collections.emptySet();
 		}
 
-		RuntimeResourceDefinition def = getContext().getResourceDefinition(theResource);
-		for (RuntimeSearchParam nextSpDef : def.getSearchParams()) {
+		Map<String, RuntimeSearchParam> searchParams = mySearchParamRegistry.getActiveSearchParams(toResourceName(theResource.getClass()));
+		for (RuntimeSearchParam nextSpDef : searchParams.values()) {
 
 			if (nextSpDef.getParamType() != RestSearchParameterTypeEnum.REFERENCE) {
 				continue;
@@ -282,6 +301,14 @@ public abstract class BaseHapiFhirDao<T extends IBaseResource> implements IDao {
 			for (PathAndRef nextPathAndRef : refs) {
 				Object nextObject = nextPathAndRef.getRef();
 
+				/*
+				 * A search parameter on an extension field that contains
+				 * references should index those references
+				 */
+				if (nextObject instanceof IBaseExtension<?, ?>) {
+					nextObject = ((IBaseExtension<?, ?>) nextObject).getValue();
+				}
+
 				IIdType nextId;
 				if (nextObject instanceof IBaseReference) {
 					IBaseReference nextValue = (IBaseReference) nextObject;
@@ -289,6 +316,16 @@ public abstract class BaseHapiFhirDao<T extends IBaseResource> implements IDao {
 						continue;
 					}
 					nextId = nextValue.getReferenceElement();
+
+					/*
+					 * This can only really happen if the DAO is being called
+					 * programatically with a Bundle (not through the FHIR REST API)
+					 * but Smile does this
+					 */
+					if (nextId.isEmpty() && nextValue.getResource() != null) {
+						nextId = nextValue.getResource().getIdElement();
+					}
+
 					if (nextId.isEmpty() || nextId.getValue().startsWith("#")) {
 						// This is a blank or contained resource reference
 						continue;
@@ -311,6 +348,16 @@ public abstract class BaseHapiFhirDao<T extends IBaseResource> implements IDao {
 					}
 				}
 
+				retVal.add(nextSpDef.getName());
+
+				if (isLogicalReference(nextId)) {
+					ResourceLink resourceLink = new ResourceLink(nextPathAndRef.getPath(), theEntity, nextId, theUpdateTime);
+					if (theLinks.add(resourceLink)) {
+						ourLog.debug("Indexing remote resource reference URL: {}", nextId);
+					}
+					continue;
+				}
+
 				String baseUrl = nextId.getBaseUrl();
 				String typeString = nextId.getResourceType();
 				if (isBlank(typeString)) {
@@ -321,7 +368,7 @@ public abstract class BaseHapiFhirDao<T extends IBaseResource> implements IDao {
 					resourceDefinition = getContext().getResourceDefinition(typeString);
 				} catch (DataFormatException e) {
 					throw new InvalidRequestException(
-							"Invalid resource reference found at path[" + nextPathsUnsplit + "] - Resource type is unknown or not supported on this server - " + nextId.getValue());
+						"Invalid resource reference found at path[" + nextPathsUnsplit + "] - Resource type is unknown or not supported on this server - " + nextId.getValue());
 				}
 
 				if (isNotBlank(baseUrl)) {
@@ -359,8 +406,21 @@ public abstract class BaseHapiFhirDao<T extends IBaseResource> implements IDao {
 				try {
 					valueOf = translateForcedIdToPid(typeString, id);
 				} catch (ResourceNotFoundException e) {
-					String resName = getContext().getResourceDefinition(type).getName();
-					throw new InvalidRequestException("Resource " + resName + "/" + id + " not found, specified in path: " + nextPathsUnsplit);
+					if (myConfig.isEnforceReferentialIntegrityOnWrite() == false) {
+						continue;
+					}
+					RuntimeResourceDefinition missingResourceDef = getContext().getResourceDefinition(type);
+					String resName = missingResourceDef.getName();
+
+					if (getConfig().isAutoCreatePlaceholderReferenceTargets()) {
+						IBaseResource newResource = missingResourceDef.newInstance();
+						newResource.setId(resName + "/" + id);
+						IFhirResourceDao<IBaseResource> placeholderResourceDao = (IFhirResourceDao<IBaseResource>) getDao(newResource.getClass());
+						ourLog.info("Automatically creating empty placeholder resource: {}", newResource.getIdElement().getValue());
+						valueOf = placeholderResourceDao.update(newResource).getEntity().getId();
+					} else {
+						throw new InvalidRequestException("Resource " + resName + "/" + id + " not found, specified in path: " + nextPathsUnsplit);
+					}
 				}
 				ResourceTable target = myEntityManager.find(ResourceTable.class, valueOf);
 				RuntimeResourceDefinition targetResourceDef = getContext().getResourceDefinition(type);
@@ -371,7 +431,12 @@ public abstract class BaseHapiFhirDao<T extends IBaseResource> implements IDao {
 
 				if (!typeString.equals(target.getResourceType())) {
 					throw new UnprocessableEntityException(
-							"Resource contains reference to " + nextId.getValue() + " but resource with ID " + nextId.getIdPart() + " is actually of type " + target.getResourceType());
+						"Resource contains reference to " + nextId.getValue() + " but resource with ID " + nextId.getIdPart() + " is actually of type " + target.getResourceType());
+				}
+
+				if (target.getDeleted() != null) {
+					String resName = targetResourceDef.getName();
+					throw new InvalidRequestException("Resource " + resName + "/" + id + " is deleted, specified in path: " + nextPathsUnsplit);
 				}
 
 				if (nextSpDef.getTargets() != null && !nextSpDef.getTargets().contains(typeString)) {
@@ -386,6 +451,7 @@ public abstract class BaseHapiFhirDao<T extends IBaseResource> implements IDao {
 
 		theEntity.setHasLinks(theLinks.size() > 0);
 
+		return retVal;
 	}
 
 	protected Set<ResourceIndexedSearchParamCoords> extractSearchParamCoords(ResourceTable theEntity, IBaseResource theResource) {
@@ -420,30 +486,36 @@ public abstract class BaseHapiFhirDao<T extends IBaseResource> implements IDao {
 		TagList tagList = ResourceMetadataKeyEnum.TAG_LIST.get(theResource);
 		if (tagList != null) {
 			for (Tag next : tagList) {
-				TagDefinition tag = getTag(TagTypeEnum.TAG, next.getScheme(), next.getTerm(), next.getLabel());
-				allDefs.add(tag);
-				theEntity.addTag(tag);
-				theEntity.setHasTags(true);
+				TagDefinition tag = getTagOrNull(TagTypeEnum.TAG, next.getScheme(), next.getTerm(), next.getLabel());
+				if (tag != null) {
+					allDefs.add(tag);
+					theEntity.addTag(tag);
+					theEntity.setHasTags(true);
+				}
 			}
 		}
 
 		List<BaseCodingDt> securityLabels = ResourceMetadataKeyEnum.SECURITY_LABELS.get(theResource);
 		if (securityLabels != null) {
 			for (BaseCodingDt next : securityLabels) {
-				TagDefinition tag = getTag(TagTypeEnum.SECURITY_LABEL, next.getSystemElement().getValue(), next.getCodeElement().getValue(), next.getDisplayElement().getValue());
-				allDefs.add(tag);
-				theEntity.addTag(tag);
-				theEntity.setHasTags(true);
+				TagDefinition tag = getTagOrNull(TagTypeEnum.SECURITY_LABEL, next.getSystemElement().getValue(), next.getCodeElement().getValue(), next.getDisplayElement().getValue());
+				if (tag != null) {
+					allDefs.add(tag);
+					theEntity.addTag(tag);
+					theEntity.setHasTags(true);
+				}
 			}
 		}
 
 		List<IdDt> profiles = ResourceMetadataKeyEnum.PROFILES.get(theResource);
 		if (profiles != null) {
 			for (IIdType next : profiles) {
-				TagDefinition tag = getTag(TagTypeEnum.PROFILE, NS_JPA_PROFILE, next.getValue(), null);
-				allDefs.add(tag);
-				theEntity.addTag(tag);
-				theEntity.setHasTags(true);
+				TagDefinition tag = getTagOrNull(TagTypeEnum.PROFILE, NS_JPA_PROFILE, next.getValue(), null);
+				if (tag != null) {
+					allDefs.add(tag);
+					theEntity.addTag(tag);
+					theEntity.setHasTags(true);
+				}
 			}
 		}
 	}
@@ -452,30 +524,36 @@ public abstract class BaseHapiFhirDao<T extends IBaseResource> implements IDao {
 		List<? extends IBaseCoding> tagList = theResource.getMeta().getTag();
 		if (tagList != null) {
 			for (IBaseCoding next : tagList) {
-				TagDefinition tag = getTag(TagTypeEnum.TAG, next.getSystem(), next.getCode(), next.getDisplay());
-				allDefs.add(tag);
-				theEntity.addTag(tag);
-				theEntity.setHasTags(true);
+				TagDefinition tag = getTagOrNull(TagTypeEnum.TAG, next.getSystem(), next.getCode(), next.getDisplay());
+				if (tag != null) {
+					allDefs.add(tag);
+					theEntity.addTag(tag);
+					theEntity.setHasTags(true);
+				}
 			}
 		}
 
 		List<? extends IBaseCoding> securityLabels = theResource.getMeta().getSecurity();
 		if (securityLabels != null) {
 			for (IBaseCoding next : securityLabels) {
-				TagDefinition tag = getTag(TagTypeEnum.SECURITY_LABEL, next.getSystem(), next.getCode(), next.getDisplay());
-				allDefs.add(tag);
-				theEntity.addTag(tag);
-				theEntity.setHasTags(true);
+				TagDefinition tag = getTagOrNull(TagTypeEnum.SECURITY_LABEL, next.getSystem(), next.getCode(), next.getDisplay());
+				if (tag != null) {
+					allDefs.add(tag);
+					theEntity.addTag(tag);
+					theEntity.setHasTags(true);
+				}
 			}
 		}
 
 		List<? extends IPrimitiveType<String>> profiles = theResource.getMeta().getProfile();
 		if (profiles != null) {
 			for (IPrimitiveType<String> next : profiles) {
-				TagDefinition tag = getTag(TagTypeEnum.PROFILE, NS_JPA_PROFILE, next.getValue(), null);
-				allDefs.add(tag);
-				theEntity.addTag(tag);
-				theEntity.setHasTags(true);
+				TagDefinition tag = getTagOrNull(TagTypeEnum.PROFILE, NS_JPA_PROFILE, next.getValue(), null);
+				if (tag != null) {
+					allDefs.add(tag);
+					theEntity.addTag(tag);
+					theEntity.setHasTags(true);
+				}
 			}
 		}
 	}
@@ -503,8 +581,70 @@ public abstract class BaseHapiFhirDao<T extends IBaseResource> implements IDao {
 		}
 	}
 
+	@SuppressWarnings("unchecked")
+	private <RT extends BaseResourceIndexedSearchParam> void findMissingSearchParams(ResourceTable theEntity, Set<Entry<String, RuntimeSearchParam>> activeSearchParams, RestSearchParameterTypeEnum type,
+																												Set<RT> paramCollection) {
+		for (Entry<String, RuntimeSearchParam> nextEntry : activeSearchParams) {
+			String nextParamName = nextEntry.getKey();
+			if (nextEntry.getValue().getParamType() == type) {
+				boolean haveParam = false;
+				for (BaseResourceIndexedSearchParam nextParam : paramCollection) {
+					if (nextParam.getParamName().equals(nextParamName)) {
+						haveParam = true;
+						break;
+					}
+				}
+
+				if (!haveParam) {
+					BaseResourceIndexedSearchParam param;
+					switch (type) {
+						case DATE:
+							param = new ResourceIndexedSearchParamDate();
+							break;
+						case NUMBER:
+							param = new ResourceIndexedSearchParamNumber();
+							break;
+						case QUANTITY:
+							param = new ResourceIndexedSearchParamQuantity();
+							break;
+						case STRING:
+							param = new ResourceIndexedSearchParamString();
+							break;
+						case TOKEN:
+							param = new ResourceIndexedSearchParamToken();
+							break;
+						case URI:
+							param = new ResourceIndexedSearchParamUri();
+							break;
+						case COMPOSITE:
+						case HAS:
+						case REFERENCE:
+						default:
+							continue;
+					}
+					param.setResource(theEntity);
+					param.setMissing(true);
+					param.setParamName(nextParamName);
+					paramCollection.add((RT) param);
+				}
+			}
+		}
+	}
+
+	private Set<TagDefinition> getAllTagDefinitions(ResourceTable theEntity) {
+		HashSet<TagDefinition> retVal = Sets.newHashSet();
+		for (ResourceTag next : theEntity.getTags()) {
+			retVal.add(next.getTag());
+		}
+		return retVal;
+	}
+
 	protected DaoConfig getConfig() {
 		return myConfig;
+	}
+
+	public void setConfig(DaoConfig theConfig) {
+		myConfig = theConfig;
 	}
 
 	@Override
@@ -512,13 +652,18 @@ public abstract class BaseHapiFhirDao<T extends IBaseResource> implements IDao {
 		return myContext;
 	}
 
+	@Autowired
+	public void setContext(FhirContext theContext) {
+		myContext = theContext;
+	}
+
 	public FhirContext getContext(FhirVersionEnum theVersion) {
-		FhirVersionEnum ver = theVersion != null ? theVersion : FhirVersionEnum.DSTU1;
+		Validate.notNull(theVersion, "theVersion must not be null");
 		synchronized (ourRetrievalContexts) {
-			FhirContext retVal = ourRetrievalContexts.get(ver);
+			FhirContext retVal = ourRetrievalContexts.get(theVersion);
 			if (retVal == null) {
-				retVal = new FhirContext(ver);
-				ourRetrievalContexts.put(ver, retVal);
+				retVal = new FhirContext(theVersion);
+				ourRetrievalContexts.put(theVersion, retVal);
 			}
 			return retVal;
 		}
@@ -527,19 +672,25 @@ public abstract class BaseHapiFhirDao<T extends IBaseResource> implements IDao {
 	@SuppressWarnings("unchecked")
 	public <R extends IBaseResource> IFhirResourceDao<R> getDao(Class<R> theType) {
 		if (myResourceTypeToDao == null) {
-			myResourceTypeToDao = new HashMap<Class<? extends IBaseResource>, IFhirResourceDao<?>>();
+			Map<Class<? extends IBaseResource>, IFhirResourceDao<?>> theResourceTypeToDao = new HashMap<Class<? extends IBaseResource>, IFhirResourceDao<?>>();
 			for (IFhirResourceDao<?> next : myResourceDaos) {
-				myResourceTypeToDao.put(next.getResourceType(), next);
+				theResourceTypeToDao.put(next.getResourceType(), next);
 			}
 
 			if (this instanceof IFhirResourceDao<?>) {
 				IFhirResourceDao<?> thiz = (IFhirResourceDao<?>) this;
-				myResourceTypeToDao.put(thiz.getResourceType(), thiz);
+				theResourceTypeToDao.put(thiz.getResourceType(), thiz);
 			}
 
+			myResourceTypeToDao = theResourceTypeToDao;
 		}
 
-		return (IFhirResourceDao<R>) myResourceTypeToDao.get(theType);
+		IFhirResourceDao<R> dao = (IFhirResourceDao<R>) myResourceTypeToDao.get(theType);
+		return dao;
+	}
+
+	public IResourceIndexedCompositeStringUniqueDao getResourceIndexedCompositeStringUniqueDao() {
+		return myResourceIndexedCompositeStringUniqueDao;
 	}
 
 	@Override
@@ -553,28 +704,28 @@ public abstract class BaseHapiFhirDao<T extends IBaseResource> implements IDao {
 		return mySearchParamRegistry.getActiveSearchParams(theResourceDef.getName()).values();
 	}
 
-	protected TagDefinition getTag(TagTypeEnum theTagType, String theScheme, String theTerm, String theLabel) {
+	protected TagDefinition getTagOrNull(TagTypeEnum theTagType, String theScheme, String theTerm, String theLabel) {
+		if (isBlank(theScheme) && isBlank(theTerm) && isBlank(theLabel)) {
+			return null;
+		}
+
 		CriteriaBuilder builder = myEntityManager.getCriteriaBuilder();
 		CriteriaQuery<TagDefinition> cq = builder.createQuery(TagDefinition.class);
 		Root<TagDefinition> from = cq.from(TagDefinition.class);
 
-		//@formatter:off
 		if (isNotBlank(theScheme)) {
 			cq.where(
 				builder.and(
-					builder.equal(from.get("myTagType"), theTagType), 
-					builder.equal(from.get("mySystem"), theScheme), 
-					builder.equal(from.get("myCode"), theTerm))
-				);
+					builder.equal(from.get("myTagType"), theTagType),
+					builder.equal(from.get("mySystem"), theScheme),
+					builder.equal(from.get("myCode"), theTerm)));
 		} else {
 			cq.where(
 				builder.and(
-					builder.equal(from.get("myTagType"), theTagType), 
-					builder.isNull(from.get("mySystem")), 
-					builder.equal(from.get("myCode"), theTerm))
-				);
+					builder.equal(from.get("myTagType"), theTagType),
+					builder.isNull(from.get("mySystem")),
+					builder.equal(from.get("myCode"), theTerm)));
 		}
-		//@formatter:on
 
 		TypedQuery<TagDefinition> q = myEntityManager.createQuery(cq);
 		try {
@@ -601,7 +752,7 @@ public abstract class BaseHapiFhirDao<T extends IBaseResource> implements IDao {
 			}
 		}
 
-		Set<Long> tagIds = new HashSet<Long>();
+		Set<Long> tagIds = new HashSet<>();
 		findMatchingTagIds(resourceName, theResourceId, tagIds, ResourceTag.class);
 		findMatchingTagIds(resourceName, theResourceId, tagIds, ResourceHistoryTag.class);
 		if (tagIds.isEmpty()) {
@@ -631,11 +782,13 @@ public abstract class BaseHapiFhirDao<T extends IBaseResource> implements IDao {
 
 		Search search = new Search();
 		search.setCreated(new Date());
+		search.setSearchLastReturned(new Date());
 		search.setLastUpdated(theSince, theUntil);
 		search.setUuid(UUID.randomUUID().toString());
 		search.setResourceType(resourceName);
 		search.setResourceId(theId);
 		search.setSearchType(SearchTypeEnum.HISTORY);
+		search.setStatus(SearchStatusEnum.FINISHED);
 
 		if (theSince != null) {
 			if (resourceName == null) {
@@ -666,7 +819,27 @@ public abstract class BaseHapiFhirDao<T extends IBaseResource> implements IDao {
 		theProvider.setEntityManager(myEntityManager);
 		theProvider.setPlatformTransactionManager(myPlatformTransactionManager);
 		theProvider.setSearchDao(mySearchDao);
-		theProvider.setSearchResultDao(mySearchResultDao);
+		theProvider.setSearchCoordinatorSvc(mySearchCoordinatorSvc);
+	}
+
+	protected boolean isLogicalReference(IIdType theId) {
+		Set<String> treatReferencesAsLogical = myConfig.getTreatReferencesAsLogical();
+		if (treatReferencesAsLogical != null) {
+			for (String nextLogicalRef : treatReferencesAsLogical) {
+				nextLogicalRef = trim(nextLogicalRef);
+				if (nextLogicalRef.charAt(nextLogicalRef.length() - 1) == '*') {
+					if (theId.getValue().startsWith(nextLogicalRef.substring(0, nextLogicalRef.length() - 1))) {
+						return true;
+					}
+				} else {
+					if (theId.getValue().equals(nextLogicalRef)) {
+						return true;
+					}
+				}
+			}
+
+		}
+		return false;
 	}
 
 	protected void markRequestAsProcessingSubRequest(ServletRequestDetails theRequestDetails) {
@@ -675,22 +848,26 @@ public abstract class BaseHapiFhirDao<T extends IBaseResource> implements IDao {
 		}
 	}
 
+	@Override
+	public SearchBuilder newSearchBuilder() {
+		SearchBuilder builder = new SearchBuilder(getContext(), myEntityManager, myFulltextSearchSvc, this, myResourceIndexedSearchParamUriDao,
+			myForcedIdDao,
+			myTerminologySvc, mySerarchParamRegistry);
+		return builder;
+	}
+
 	protected void notifyInterceptors(RestOperationTypeEnum theOperationType, ActionRequestDetails theRequestDetails) {
 		if (theRequestDetails.getId() != null && theRequestDetails.getId().hasResourceType() && isNotBlank(theRequestDetails.getResourceType())) {
 			if (theRequestDetails.getId().getResourceType().equals(theRequestDetails.getResourceType()) == false) {
 				throw new InternalErrorException(
-						"Inconsistent server state - Resource types don't match: " + theRequestDetails.getId().getResourceType() + " / " + theRequestDetails.getResourceType());
+					"Inconsistent server state - Resource types don't match: " + theRequestDetails.getId().getResourceType() + " / " + theRequestDetails.getResourceType());
 			}
 		}
 
 		if (theRequestDetails.getUserData().get(PROCESSING_SUB_REQUEST) == Boolean.TRUE) {
 			theRequestDetails.notifyIncomingRequestPreHandled(theOperationType);
 		}
-
 		List<IServerInterceptor> interceptors = getConfig().getInterceptors();
-		if (interceptors == null) {
-			return;
-		}
 		for (IServerInterceptor next : interceptors) {
 			next.incomingRequestPreHandled(theOperationType, theRequestDetails);
 		}
@@ -701,8 +878,8 @@ public abstract class BaseHapiFhirDao<T extends IBaseResource> implements IDao {
 		@SuppressWarnings("rawtypes")
 		List<IPrimitiveType> childElements = getContext().newTerser().getAllPopulatedChildElementsOfType(theResource, IPrimitiveType.class);
 		for (@SuppressWarnings("rawtypes")
-		IPrimitiveType nextType : childElements) {
-			if (nextType instanceof StringDt || nextType.getClass().equals(StringType.class)) {
+			IPrimitiveType nextType : childElements) {
+			if (nextType instanceof StringDt || nextType.getClass().getSimpleName().equals("StringType")) {
 				String nextValue = nextType.getValueAsString();
 				if (isNotBlank(nextValue)) {
 					retVal.append(nextValue.replace("\n", " ").replace("\r", " "));
@@ -724,15 +901,18 @@ public abstract class BaseHapiFhirDao<T extends IBaseResource> implements IDao {
 		}
 	}
 
-	private void populateResourceId(final IBaseResource theResource, BaseHasResource theEntity) {
+	private void populateResourceIdFromEntity(BaseHasResource theEntity, final IBaseResource theResource) {
 		IIdType id = theEntity.getIdDt();
 		if (getContext().getVersion().getVersion().isRi()) {
-			id = new IdType(id.getValue());
+			id = getContext().getVersion().newIdType().setValue(id.getValue());
 		}
 		theResource.setId(id);
 	}
 
-	protected void populateResourceIntoEntity(IBaseResource theResource, ResourceTable theEntity) {
+	/**
+	 * Returns true if the resource has changed (either the contents or the tags)
+	 */
+	protected boolean populateResourceIntoEntity(IBaseResource theResource, ResourceTable theEntity, boolean theUpdateHash) {
 		theEntity.setResourceType(toResourceName(theResource));
 
 		List<BaseResourceReferenceDt> refs = myContext.newTerser().getAllPopulatedChildElementsOfType(theResource, BaseResourceReferenceDt.class);
@@ -744,22 +924,51 @@ public abstract class BaseHapiFhirDao<T extends IBaseResource> implements IDao {
 			}
 		}
 
-		String encoded = myConfig.getResourceEncoding().newParser(myContext).encodeResourceToString(theResource);
 		ResourceEncodingEnum encoding = myConfig.getResourceEncoding();
+
+		IParser parser = encoding.newParser(myContext);
+		parser.setDontEncodeElements(EXCLUDE_ELEMENTS_IN_ENCODED);
+		String encoded = parser.encodeResourceToString(theResource);
+
 		theEntity.setEncoding(encoding);
 		theEntity.setFhirVersion(myContext.getVersion().getVersion());
+		byte[] bytes;
 		switch (encoding) {
-		case JSON:
-			theEntity.setResource(encoded.getBytes(Charsets.UTF_8));
-			break;
-		case JSONC:
-			theEntity.setResource(GZipUtil.compress(encoded));
-			break;
+			case JSON:
+				bytes = encoded.getBytes(Charsets.UTF_8);
+				break;
+			default:
+			case JSONC:
+				bytes = GZipUtil.compress(encoded);
+				break;
 		}
+
+		boolean changed = false;
+
+		if (theUpdateHash) {
+			HashFunction sha256 = Hashing.sha256();
+			String hashSha256 = sha256.hashBytes(bytes).toString();
+			if (hashSha256.equals(theEntity.getHashSha256()) == false) {
+				changed = true;
+			}
+			theEntity.setHashSha256(hashSha256);
+		}
+
+		if (changed == false) {
+			if (theEntity.getResource() == null) {
+				changed = true;
+			} else {
+				changed = !Arrays.equals(theEntity.getResource(), bytes);
+			}
+		}
+
+		theEntity.setResource(bytes);
 
 		Set<TagDefinition> allDefs = new HashSet<TagDefinition>();
 
 		theEntity.setHasTags(false);
+
+		Set<TagDefinition> allTagsOld = getAllTagDefinitions(theEntity);
 
 		if (theResource instanceof IResource) {
 			extractTagsHapi((IResource) theResource, theEntity, allDefs);
@@ -771,10 +980,12 @@ public abstract class BaseHapiFhirDao<T extends IBaseResource> implements IDao {
 		if (def.isStandardType() == false) {
 			String profile = def.getResourceProfile("");
 			if (isNotBlank(profile)) {
-				TagDefinition tag = getTag(TagTypeEnum.PROFILE, NS_JPA_PROFILE, profile, null);
-				allDefs.add(tag);
-				theEntity.addTag(tag);
-				theEntity.setHasTags(true);
+				TagDefinition tag = getTagOrNull(TagTypeEnum.PROFILE, NS_JPA_PROFILE, profile, null);
+				if (tag != null) {
+					allDefs.add(tag);
+					theEntity.addTag(tag);
+					theEntity.setHasTags(true);
+				}
 			}
 		}
 
@@ -791,14 +1002,12 @@ public abstract class BaseHapiFhirDao<T extends IBaseResource> implements IDao {
 			}
 		}
 
-		if (theResource instanceof IResource) {
-			String title = ResourceMetadataKeyEnum.TITLE.get((IResource) theResource);
-			if (title != null && title.length() > BaseHasResource.MAX_TITLE_LENGTH) {
-				title = title.substring(0, BaseHasResource.MAX_TITLE_LENGTH);
-			}
-			theEntity.setTitle(title);
+		Set<TagDefinition> allTagsNew = getAllTagDefinitions(theEntity);
+		if (!allTagsOld.equals(allTagsNew)) {
+			changed = true;
 		}
 
+		return changed;
 	}
 
 	@SuppressWarnings("unchecked")
@@ -831,10 +1040,6 @@ public abstract class BaseHapiFhirDao<T extends IBaseResource> implements IDao {
 		ResourceMetadataKeyEnum.UPDATED.put(res, theEntity.getUpdated());
 		IDao.RESOURCE_PID.put(res, theEntity.getId());
 
-		if (theEntity.getTitle() != null) {
-			ResourceMetadataKeyEnum.TITLE.put(res, theEntity.getTitle());
-		}
-
 		Collection<? extends BaseTag> tags = theEntity.getTags();
 		if (theEntity.isHasTags()) {
 			TagList tagList = new TagList();
@@ -842,19 +1047,19 @@ public abstract class BaseHapiFhirDao<T extends IBaseResource> implements IDao {
 			List<IdDt> profiles = new ArrayList<IdDt>();
 			for (BaseTag next : tags) {
 				switch (next.getTag().getTagType()) {
-				case PROFILE:
-					profiles.add(new IdDt(next.getTag().getCode()));
-					break;
-				case SECURITY_LABEL:
-					IBaseCoding secLabel = (IBaseCoding) myContext.getVersion().newCodingDt();
-					secLabel.setSystem(next.getTag().getSystem());
-					secLabel.setCode(next.getTag().getCode());
-					secLabel.setDisplay(next.getTag().getDisplay());
-					securityLabels.add(secLabel);
-					break;
-				case TAG:
-					tagList.add(new Tag(next.getTag().getSystem(), next.getTag().getCode(), next.getTag().getDisplay()));
-					break;
+					case PROFILE:
+						profiles.add(new IdDt(next.getTag().getCode()));
+						break;
+					case SECURITY_LABEL:
+						IBaseCoding secLabel = (IBaseCoding) myContext.getVersion().newCodingDt();
+						secLabel.setSystem(next.getTag().getSystem());
+						secLabel.setCode(next.getTag().getCode());
+						secLabel.setDisplay(next.getTag().getDisplay());
+						securityLabels.add(secLabel);
+						break;
+					case TAG:
+						tagList.add(new Tag(next.getTag().getSystem(), next.getTag().getCode(), next.getTag().getDisplay()));
+						break;
 				}
 			}
 			if (tagList.size() > 0) {
@@ -900,7 +1105,7 @@ public abstract class BaseHapiFhirDao<T extends IBaseResource> implements IDao {
 		res.getMeta().setLastUpdated(null);
 		res.getMeta().setVersionId(null);
 
-		populateResourceId(res, theEntity);
+		populateResourceIdFromEntity(theEntity, res);
 
 		res.getMeta().setLastUpdated(theEntity.getUpdatedDate());
 		IDao.RESOURCE_PID.put(res, theEntity.getId());
@@ -910,21 +1115,21 @@ public abstract class BaseHapiFhirDao<T extends IBaseResource> implements IDao {
 		if (theEntity.isHasTags()) {
 			for (BaseTag next : tags) {
 				switch (next.getTag().getTagType()) {
-				case PROFILE:
-					res.getMeta().addProfile(next.getTag().getCode());
-					break;
-				case SECURITY_LABEL:
-					IBaseCoding sec = res.getMeta().addSecurity();
-					sec.setSystem(next.getTag().getSystem());
-					sec.setCode(next.getTag().getCode());
-					sec.setDisplay(next.getTag().getDisplay());
-					break;
-				case TAG:
-					IBaseCoding tag = res.getMeta().addTag();
-					tag.setSystem(next.getTag().getSystem());
-					tag.setCode(next.getTag().getCode());
-					tag.setDisplay(next.getTag().getDisplay());
-					break;
+					case PROFILE:
+						res.getMeta().addProfile(next.getTag().getCode());
+						break;
+					case SECURITY_LABEL:
+						IBaseCoding sec = res.getMeta().addSecurity();
+						sec.setSystem(next.getTag().getSystem());
+						sec.setCode(next.getTag().getCode());
+						sec.setDisplay(next.getTag().getDisplay());
+						break;
+					case TAG:
+						IBaseCoding tag = res.getMeta().addTag();
+						tag.setSystem(next.getTag().getSystem());
+						tag.setCode(next.getTag().getCode());
+						tag.setDisplay(next.getTag().getDisplay());
+						break;
 				}
 			}
 		}
@@ -933,25 +1138,19 @@ public abstract class BaseHapiFhirDao<T extends IBaseResource> implements IDao {
 
 	/**
 	 * Subclasses may override to provide behaviour. Called when a resource has been inserted into the database for the first time.
-	 * 
-	 * @param theEntity
-	 *            The entity being updated (Do not modify the entity! Undefined behaviour will occur!)
-	 * @param theTag
-	 *            The tag
-	 * @return Returns <code>true</code> if the tag should be removed
+	 *
+	 * @param theEntity   The entity being updated (Do not modify the entity! Undefined behaviour will occur!)
+	 * @param theResource The resource being persisted
 	 */
-	@SuppressWarnings("unused")
 	protected void postPersist(ResourceTable theEntity, T theResource) {
 		// nothing
 	}
 
 	/**
 	 * Subclasses may override to provide behaviour. Called when a pre-existing resource has been updated in the database
-	 * 
-	 * @param theEntity
-	 *            The resource
-	 * @param theResource
-	 *            The resource being persisted
+	 *
+	 * @param theEntity   The resource
+	 * @param theResource The resource being persisted
 	 */
 	protected void postUpdate(ResourceTable theEntity, T theResource) {
 		// nothing
@@ -962,31 +1161,25 @@ public abstract class BaseHapiFhirDao<T extends IBaseResource> implements IDao {
 		RuntimeResourceDefinition resourceDef = getContext().getResourceDefinition(theResourceType);
 
 		SearchParameterMap paramMap = translateMatchUrl(this, myContext, theMatchUrl, resourceDef);
-		paramMap.setPersistResults(false);
+		paramMap.setLoadSynchronous(true);
 
 		if (paramMap.isEmpty() && paramMap.getLastUpdated() == null) {
 			throw new InvalidRequestException("Invalid match URL[" + theMatchUrl + "] - URL has no search parameters");
 		}
 
 		IFhirResourceDao<R> dao = getDao(theResourceType);
-		Set<Long> ids = dao.searchForIdsWithAndOr(paramMap);
+		if (dao == null) {
+			throw new InternalErrorException("No DAO for resource type: " + theResourceType.getName());
+		}
+
+		Set<Long> ids = dao.searchForIds(paramMap);
 
 		return ids;
 	}
 
-	@SuppressWarnings("unused")
 	@CoverageIgnore
 	public BaseHasResource readEntity(IIdType theValueId) {
 		throw new NotImplementedException("");
-	}
-
-	public void setConfig(DaoConfig theConfig) {
-		myConfig = theConfig;
-	}
-
-	@Autowired
-	public void setContext(FhirContext theContext) {
-		myContext = theContext;
 	}
 
 	public void setEntityManager(EntityManager theEntityManager) {
@@ -997,6 +1190,12 @@ public abstract class BaseHapiFhirDao<T extends IBaseResource> implements IDao {
 		myPlatformTransactionManager = thePlatformTransactionManager;
 	}
 
+	private void setUpdatedTime(Collection<? extends BaseResourceIndexedSearchParam> theParams, Date theUpdateTime) {
+		for (BaseResourceIndexedSearchParam nextSearchParam : theParams) {
+			nextSearchParam.setUpdated(theUpdateTime);
+		}
+	}
+
 	/**
 	 * This method is called when an update to an existing resource detects that the resource supplied for update is missing a tag/profile/security label that the currently persisted resource holds.
 	 * <p>
@@ -1005,11 +1204,9 @@ public abstract class BaseHapiFhirDao<T extends IBaseResource> implements IDao {
 	 * <p>
 	 * See <a href="http://hl7.org/fhir/2015Sep/resource.html#1.11.3.7">Updates to Tags, Profiles, and Security Labels</a> for a description of the logic that the default behaviour folows.
 	 * </p>
-	 * 
-	 * @param theEntity
-	 *            The entity being updated (Do not modify the entity! Undefined behaviour will occur!)
-	 * @param theTag
-	 *            The tag
+	 *
+	 * @param theEntity The entity being updated (Do not modify the entity! Undefined behaviour will occur!)
+	 * @param theTag    The tag
 	 * @return Retturns <code>true</code> if the tag should be removed
 	 */
 	protected boolean shouldDroppedTagBeRemovedOnUpdate(ResourceTable theEntity, ResourceTag theTag) {
@@ -1019,14 +1216,6 @@ public abstract class BaseHapiFhirDao<T extends IBaseResource> implements IDao {
 		return false;
 	}
 
-	protected ResourceTable toEntity(IResource theResource) {
-		ResourceTable retVal = new ResourceTable();
-
-		populateResourceIntoEntity(theResource, retVal);
-
-		return retVal;
-	}
-
 	@Override
 	public IBaseResource toResource(BaseHasResource theEntity, boolean theForHistoryOperation) {
 		RuntimeResourceDefinition type = myContext.getResourceDefinition(theEntity.getResourceType());
@@ -1034,21 +1223,29 @@ public abstract class BaseHapiFhirDao<T extends IBaseResource> implements IDao {
 		return toResource(resourceType, theEntity, theForHistoryOperation);
 	}
 
+	// protected ResourceTable toEntity(IResource theResource) {
+	// ResourceTable retVal = new ResourceTable();
+	//
+	// populateResourceIntoEntity(theResource, retVal, true);
+	//
+	// return retVal;
+	// }
+
 	@SuppressWarnings("unchecked")
 	@Override
 	public <R extends IBaseResource> R toResource(Class<R> theResourceType, BaseHasResource theEntity, boolean theForHistoryOperation) {
 		String resourceText = null;
 		switch (theEntity.getEncoding()) {
-		case JSON:
-			try {
-				resourceText = new String(theEntity.getResource(), "UTF-8");
-			} catch (UnsupportedEncodingException e) {
-				throw new Error("Should not happen", e);
-			}
-			break;
-		case JSONC:
-			resourceText = GZipUtil.decompress(theEntity.getResource());
-			break;
+			case JSON:
+				try {
+					resourceText = new String(theEntity.getResource(), "UTF-8");
+				} catch (UnsupportedEncodingException e) {
+					throw new Error("Should not happen", e);
+				}
+				break;
+			case JSONC:
+				resourceText = GZipUtil.decompress(theEntity.getResource());
+				break;
 		}
 
 		/*
@@ -1072,6 +1269,8 @@ public abstract class BaseHapiFhirDao<T extends IBaseResource> implements IDao {
 		}
 
 		IParser parser = theEntity.getEncoding().newParser(getContext(theEntity.getFhirVersion()));
+		parser.setParserErrorHandler(new LenientErrorHandler(false).setErrorOnInvalidValue(false));
+
 		R retVal;
 		try {
 			retVal = parser.parseResource(resourceType, resourceText);
@@ -1129,7 +1328,7 @@ public abstract class BaseHapiFhirDao<T extends IBaseResource> implements IDao {
 
 	@SuppressWarnings("unchecked")
 	protected ResourceTable updateEntity(final IBaseResource theResource, ResourceTable theEntity, Date theDeletedTimestampOrNull, boolean thePerformIndexing,
-			boolean theUpdateVersion, Date theUpdateTime) {
+													 boolean theUpdateVersion, Date theUpdateTime, boolean theForceUpdate, boolean theCreateNewHistoryEntry) {
 		ourLog.debug("Starting entity update");
 
 		/*
@@ -1142,7 +1341,7 @@ public abstract class BaseHapiFhirDao<T extends IBaseResource> implements IDao {
 			String resourceType = myContext.getResourceDefinition(theResource).getName();
 			if (isNotBlank(theEntity.getResourceType()) && !theEntity.getResourceType().equals(resourceType)) {
 				throw new UnprocessableEntityException(
-						"Existing resource ID[" + theEntity.getIdDt().toUnqualifiedVersionless() + "] is of type[" + theEntity.getResourceType() + "] - Cannot update with [" + resourceType + "]");
+					"Existing resource ID[" + theEntity.getIdDt().toUnqualifiedVersionless() + "] is of type[" + theEntity.getResourceType() + "] - Cannot update with [" + resourceType + "]");
 			}
 		}
 
@@ -1152,41 +1351,42 @@ public abstract class BaseHapiFhirDao<T extends IBaseResource> implements IDao {
 			theEntity.setPublished(theUpdateTime);
 		}
 
-		if (theUpdateVersion) {
-			theEntity.setVersion(theEntity.getVersion() + 1);
-		}
-
-		Collection<ResourceIndexedSearchParamString> paramsString = new ArrayList<ResourceIndexedSearchParamString>();
+		Collection<ResourceIndexedSearchParamString> existingStringParams = new ArrayList<>();
 		if (theEntity.isParamsStringPopulated()) {
-			paramsString.addAll(theEntity.getParamsString());
+			existingStringParams.addAll(theEntity.getParamsString());
 		}
-		Collection<ResourceIndexedSearchParamToken> paramsToken = new ArrayList<ResourceIndexedSearchParamToken>();
+		Collection<ResourceIndexedSearchParamToken> existingTokenParams = new ArrayList<>();
 		if (theEntity.isParamsTokenPopulated()) {
-			paramsToken.addAll(theEntity.getParamsToken());
+			existingTokenParams.addAll(theEntity.getParamsToken());
 		}
-		Collection<ResourceIndexedSearchParamNumber> paramsNumber = new ArrayList<ResourceIndexedSearchParamNumber>();
+		Collection<ResourceIndexedSearchParamNumber> existingNumberParams = new ArrayList<>();
 		if (theEntity.isParamsNumberPopulated()) {
-			paramsNumber.addAll(theEntity.getParamsNumber());
+			existingNumberParams.addAll(theEntity.getParamsNumber());
 		}
-		Collection<ResourceIndexedSearchParamQuantity> paramsQuantity = new ArrayList<ResourceIndexedSearchParamQuantity>();
+		Collection<ResourceIndexedSearchParamQuantity> existingQuantityParams = new ArrayList<>();
 		if (theEntity.isParamsQuantityPopulated()) {
-			paramsQuantity.addAll(theEntity.getParamsQuantity());
+			existingQuantityParams.addAll(theEntity.getParamsQuantity());
 		}
-		Collection<ResourceIndexedSearchParamDate> paramsDate = new ArrayList<ResourceIndexedSearchParamDate>();
+		Collection<ResourceIndexedSearchParamDate> existingDateParams = new ArrayList<>();
 		if (theEntity.isParamsDatePopulated()) {
-			paramsDate.addAll(theEntity.getParamsDate());
+			existingDateParams.addAll(theEntity.getParamsDate());
 		}
-		Collection<ResourceIndexedSearchParamUri> paramsUri = new ArrayList<ResourceIndexedSearchParamUri>();
+		Collection<ResourceIndexedSearchParamUri> existingUriParams = new ArrayList<>();
 		if (theEntity.isParamsUriPopulated()) {
-			paramsUri.addAll(theEntity.getParamsUri());
+			existingUriParams.addAll(theEntity.getParamsUri());
 		}
-		Collection<ResourceIndexedSearchParamCoords> paramsCoords = new ArrayList<ResourceIndexedSearchParamCoords>();
+		Collection<ResourceIndexedSearchParamCoords> existingCoordsParams = new ArrayList<>();
 		if (theEntity.isParamsCoordsPopulated()) {
-			paramsCoords.addAll(theEntity.getParamsCoords());
+			existingCoordsParams.addAll(theEntity.getParamsCoords());
 		}
-		Collection<ResourceLink> existingResourceLinks = new ArrayList<ResourceLink>();
+		Collection<ResourceLink> existingResourceLinks = new ArrayList<>();
 		if (theEntity.isHasLinks()) {
 			existingResourceLinks.addAll(theEntity.getResourceLinks());
+		}
+
+		Collection<ResourceIndexedCompositeStringUnique> existingCompositeStringUniques = new ArrayList<>();
+		if (theEntity.isParamsCompositeStringUniquePresent()) {
+			existingCompositeStringUniques.addAll(theEntity.getParamsCompositeStringUnique());
 		}
 
 		Set<ResourceIndexedSearchParamString> stringParams = null;
@@ -1196,8 +1396,11 @@ public abstract class BaseHapiFhirDao<T extends IBaseResource> implements IDao {
 		Set<ResourceIndexedSearchParamDate> dateParams = null;
 		Set<ResourceIndexedSearchParamUri> uriParams = null;
 		Set<ResourceIndexedSearchParamCoords> coordsParams = null;
+		Set<ResourceIndexedCompositeStringUnique> compositeStringUniques = null;
 		Set<ResourceLink> links = null;
 
+		Set<String> populatedResourceLinkParameters = Collections.emptySet();
+		boolean changed;
 		if (theDeletedTimestampOrNull != null) {
 
 			stringParams = Collections.emptySet();
@@ -1208,10 +1411,14 @@ public abstract class BaseHapiFhirDao<T extends IBaseResource> implements IDao {
 			uriParams = Collections.emptySet();
 			coordsParams = Collections.emptySet();
 			links = Collections.emptySet();
+			compositeStringUniques = Collections.emptySet();
+
 			theEntity.setDeleted(theDeletedTimestampOrNull);
 			theEntity.setUpdated(theDeletedTimestampOrNull);
 			theEntity.setNarrativeTextParsedIntoWords(null);
 			theEntity.setContentTextParsedIntoWords(null);
+			theEntity.setHashSha256(null);
+			changed = true;
 
 		} else {
 
@@ -1226,16 +1433,25 @@ public abstract class BaseHapiFhirDao<T extends IBaseResource> implements IDao {
 				uriParams = extractSearchParamUri(theEntity, theResource);
 				coordsParams = extractSearchParamCoords(theEntity, theResource);
 
-				// ourLog.info("Indexing resource: {}", entity.getId());
 				ourLog.trace("Storing date indexes: {}", dateParams);
 
-				tokenParams = new HashSet<ResourceIndexedSearchParamToken>();
+				tokenParams = new HashSet<>();
 				for (BaseResourceIndexedSearchParam next : extractSearchParamTokens(theEntity, theResource)) {
 					if (next instanceof ResourceIndexedSearchParamToken) {
 						tokenParams.add((ResourceIndexedSearchParamToken) next);
 					} else {
 						stringParams.add((ResourceIndexedSearchParamString) next);
 					}
+				}
+
+				Set<Entry<String, RuntimeSearchParam>> activeSearchParams = mySearchParamRegistry.getActiveSearchParams(theEntity.getResourceType()).entrySet();
+				if (myConfig.getIndexMissingFields() == DaoConfig.IndexEnabledEnum.ENABLED) {
+					findMissingSearchParams(theEntity, activeSearchParams, RestSearchParameterTypeEnum.STRING, stringParams);
+					findMissingSearchParams(theEntity, activeSearchParams, RestSearchParameterTypeEnum.NUMBER, numberParams);
+					findMissingSearchParams(theEntity, activeSearchParams, RestSearchParameterTypeEnum.QUANTITY, quantityParams);
+					findMissingSearchParams(theEntity, activeSearchParams, RestSearchParameterTypeEnum.DATE, dateParams);
+					findMissingSearchParams(theEntity, activeSearchParams, RestSearchParameterTypeEnum.URI, uriParams);
+					findMissingSearchParams(theEntity, activeSearchParams, RestSearchParameterTypeEnum.TOKEN, tokenParams);
 				}
 
 				setUpdatedTime(stringParams, theUpdateTime);
@@ -1245,11 +1461,10 @@ public abstract class BaseHapiFhirDao<T extends IBaseResource> implements IDao {
 				setUpdatedTime(uriParams, theUpdateTime);
 				setUpdatedTime(coordsParams, theUpdateTime);
 				setUpdatedTime(tokenParams, theUpdateTime);
-				
+
 				/*
 				 * Handle references within the resource that are match URLs, for example references like "Patient?identifier=foo". These match URLs are resolved and replaced with the ID of the
-				 * matching
-				 * resource.
+				 * matching resource.
 				 */
 				if (myConfig.isAllowInlineMatchUrlReferences()) {
 					FhirTerser terser = getContext().newTerser();
@@ -1296,13 +1511,13 @@ public abstract class BaseHapiFhirDao<T extends IBaseResource> implements IDao {
 					}
 				}
 
-				links = new HashSet<ResourceLink>();
-				extractResourceLinks(theEntity, theResource, links, theUpdateTime);
+				links = new HashSet<>();
+				populatedResourceLinkParameters = extractResourceLinks(theEntity, theResource, links, theUpdateTime);
 
 				/*
 				 * If the existing resource already has links and those match links we still want, use them instead of removing them and re adding them
 				 */
-				for (Iterator<ResourceLink> existingLinkIter = existingResourceLinks.iterator(); existingLinkIter.hasNext();) {
+				for (Iterator<ResourceLink> existingLinkIter = existingResourceLinks.iterator(); existingLinkIter.hasNext(); ) {
 					ResourceLink nextExisting = existingLinkIter.next();
 					if (links.remove(nextExisting)) {
 						existingLinkIter.remove();
@@ -1310,7 +1525,12 @@ public abstract class BaseHapiFhirDao<T extends IBaseResource> implements IDao {
 					}
 				}
 
-				populateResourceIntoEntity(theResource, theEntity);
+				/*
+				 * Handle composites
+				 */
+				compositeStringUniques = extractCompositeStringUniques(theEntity, stringParams, tokenParams, numberParams, quantityParams, dateParams, uriParams, links);
+
+				changed = populateResourceIntoEntity(theResource, theEntity, true);
 
 				theEntity.setUpdated(theUpdateTime);
 				if (theResource instanceof IResource) {
@@ -1332,6 +1552,8 @@ public abstract class BaseHapiFhirDao<T extends IBaseResource> implements IDao {
 				theEntity.setParamsUriPopulated(uriParams.isEmpty() == false);
 				theEntity.setParamsCoords(coordsParams);
 				theEntity.setParamsCoordsPopulated(coordsParams.isEmpty() == false);
+//				theEntity.setParamsCompositeStringUnique(compositeStringUniques);
+				theEntity.setParamsCompositeStringUniquePresent(compositeStringUniques.isEmpty() == false);
 				theEntity.setResourceLinks(links);
 				theEntity.setHasLinks(links.isEmpty() == false);
 				theEntity.setIndexStatus(INDEX_STATUS_INDEXED);
@@ -1339,13 +1561,27 @@ public abstract class BaseHapiFhirDao<T extends IBaseResource> implements IDao {
 
 			} else {
 
-				populateResourceIntoEntity(theResource, theEntity);
+				changed = populateResourceIntoEntity(theResource, theEntity, false);
+
 				theEntity.setUpdated(theUpdateTime);
 				// theEntity.setLanguage(theResource.getLanguage().getValue());
 				theEntity.setIndexStatus(null);
 
 			}
 
+		}
+
+		if (!changed && !theForceUpdate && myConfig.isSuppressUpdatesWithNoChange()) {
+			ourLog.info("Resource {} has not changed", theEntity.getIdDt().toUnqualified().getValue());
+			if (theResource != null) {
+				populateResourceIdFromEntity(theEntity, theResource);
+			}
+			theEntity.setUnchangedInCurrentOperation(true);
+			return theEntity;
+		}
+
+		if (theUpdateVersion) {
+			theEntity.setVersion(theEntity.getVersion() + 1);
 		}
 
 		/*
@@ -1367,9 +1603,35 @@ public abstract class BaseHapiFhirDao<T extends IBaseResource> implements IDao {
 		}
 
 		/*
+		 * Update the "search param present" table which is used for the
+		 * ?foo:missing=true queries
+		 *
+		 * Note that we're only populating this for reference params
+		 * because the index tables for all other types have a MISSING column
+		 * right on them for handling the :missing queries. We can't use the
+		 * index table for resource links (reference indexes) because we index
+		 * those by path and not by parameter name.
+		 */
+		if (thePerformIndexing) {
+			Map<String, Boolean> presentSearchParams = new HashMap<>();
+			for (String nextKey : populatedResourceLinkParameters) {
+				presentSearchParams.put(nextKey, Boolean.TRUE);
+			}
+			Set<Entry<String, RuntimeSearchParam>> activeSearchParams = mySearchParamRegistry.getActiveSearchParams(theEntity.getResourceType()).entrySet();
+			for (Entry<String, RuntimeSearchParam> nextSpEntry : activeSearchParams) {
+				if (nextSpEntry.getValue().getParamType() == RestSearchParameterTypeEnum.REFERENCE) {
+					if (!presentSearchParams.containsKey(nextSpEntry.getKey())) {
+						presentSearchParams.put(nextSpEntry.getKey(), Boolean.FALSE);
+					}
+				}
+			}
+			mySearchParamPresenceSvc.updatePresence(theEntity, presentSearchParams);
+		}
+
+		/*
 		 * Create history entry
 		 */
-		if (theUpdateVersion) {
+		if (theCreateNewHistoryEntry) {
 			final ResourceHistoryTable historyEntry = theEntity.toHistory(null);
 
 			ourLog.info("Saving history entry {}", historyEntry.getIdDt());
@@ -1381,89 +1643,115 @@ public abstract class BaseHapiFhirDao<T extends IBaseResource> implements IDao {
 		 */
 		if (thePerformIndexing) {
 
-			for (ResourceIndexedSearchParamString next : paramsString) {
+			for (ResourceIndexedSearchParamString next : removeCommon(existingStringParams, stringParams)) {
 				myEntityManager.remove(next);
 			}
-			for (ResourceIndexedSearchParamString next : stringParams) {
+			for (ResourceIndexedSearchParamString next : removeCommon(stringParams, existingStringParams)) {
 				myEntityManager.persist(next);
 			}
 
-			for (ResourceIndexedSearchParamToken next : paramsToken) {
+			for (ResourceIndexedSearchParamToken next : removeCommon(existingTokenParams, tokenParams)) {
 				myEntityManager.remove(next);
 			}
-			for (ResourceIndexedSearchParamToken next : tokenParams) {
+			for (ResourceIndexedSearchParamToken next : removeCommon(tokenParams, existingTokenParams)) {
 				myEntityManager.persist(next);
 			}
 
-			for (ResourceIndexedSearchParamNumber next : paramsNumber) {
+			for (ResourceIndexedSearchParamNumber next : removeCommon(existingNumberParams, numberParams)) {
 				myEntityManager.remove(next);
 			}
-			for (ResourceIndexedSearchParamNumber next : numberParams) {
+			for (ResourceIndexedSearchParamNumber next : removeCommon(numberParams, existingNumberParams)) {
 				myEntityManager.persist(next);
 			}
 
-			for (ResourceIndexedSearchParamQuantity next : paramsQuantity) {
+			for (ResourceIndexedSearchParamQuantity next : removeCommon(existingQuantityParams, quantityParams)) {
 				myEntityManager.remove(next);
 			}
-			for (ResourceIndexedSearchParamQuantity next : quantityParams) {
+			for (ResourceIndexedSearchParamQuantity next : removeCommon(quantityParams, existingQuantityParams)) {
 				myEntityManager.persist(next);
 			}
 
 			// Store date SP's
-			for (ResourceIndexedSearchParamDate next : paramsDate) {
+			for (ResourceIndexedSearchParamDate next : removeCommon(existingDateParams, dateParams)) {
 				myEntityManager.remove(next);
 			}
-			for (ResourceIndexedSearchParamDate next : dateParams) {
+			for (ResourceIndexedSearchParamDate next : removeCommon(dateParams, existingDateParams)) {
 				myEntityManager.persist(next);
 			}
 
 			// Store URI SP's
-			for (ResourceIndexedSearchParamUri next : paramsUri) {
+			for (ResourceIndexedSearchParamUri next : removeCommon(existingUriParams, uriParams)) {
 				myEntityManager.remove(next);
 			}
-			for (ResourceIndexedSearchParamUri next : uriParams) {
+			for (ResourceIndexedSearchParamUri next : removeCommon(uriParams, existingUriParams)) {
 				myEntityManager.persist(next);
 			}
 
 			// Store Coords SP's
-			for (ResourceIndexedSearchParamCoords next : paramsCoords) {
+			for (ResourceIndexedSearchParamCoords next : removeCommon(existingCoordsParams, coordsParams)) {
 				myEntityManager.remove(next);
 			}
-			for (ResourceIndexedSearchParamCoords next : coordsParams) {
+			for (ResourceIndexedSearchParamCoords next : removeCommon(coordsParams, existingCoordsParams)) {
 				myEntityManager.persist(next);
 			}
 
 			// Store resource links
-			for (ResourceLink next : existingResourceLinks) {
+			for (ResourceLink next : removeCommon(existingResourceLinks, links)) {
 				myEntityManager.remove(next);
 			}
-			for (ResourceLink next : links) {
+			for (ResourceLink next : removeCommon(links, existingResourceLinks)) {
 				myEntityManager.persist(next);
 			}
 			// make sure links are indexed
 			theEntity.setResourceLinks(links);
 
-			theEntity.toString();
+			// Store composite string uniques
+			if (getConfig().isUniqueIndexesEnabled()) {
+				for (ResourceIndexedCompositeStringUnique next : existingCompositeStringUniques) {
+					if (!compositeStringUniques.contains(next)) {
+						myEntityManager.remove(next);
+					}
+				}
+				for (ResourceIndexedCompositeStringUnique next : compositeStringUniques) {
+					if (!existingCompositeStringUniques.contains(next)) {
+						if (myConfig.isUniqueIndexesCheckedBeforeSave()) {
+							ResourceIndexedCompositeStringUnique existing = myResourceIndexedCompositeStringUniqueDao.findByQueryString(next.getIndexString());
+							if (existing != null) {
+								throw new PreconditionFailedException("Can not create resource of type " + theEntity.getResourceType() + " as it would create a duplicate index matching query: " + next.getIndexString() + " (existing index belongs to " + existing.getResource().getIdDt().toUnqualifiedVersionless().getValue() + ")");
+							}
+						}
+						ourLog.debug("Persisting unique index: {}", next);
+						myEntityManager.persist(next);
+					}
+				}
+			}
 
 		} // if thePerformIndexing
 
 		theEntity = myEntityManager.merge(theEntity);
 
 		if (theResource != null) {
-			populateResourceId(theResource, theEntity);
+			populateResourceIdFromEntity(theEntity, theResource);
 		}
 
 		return theEntity;
 	}
 
-	private void setUpdatedTime(Collection<? extends BaseResourceIndexedSearchParam> theParams, Date theUpdateTime) {
-		for (BaseResourceIndexedSearchParam nextSearchParam : theParams) {
-			nextSearchParam.setUpdated(theUpdateTime);
+	private <T> Collection<T> removeCommon(Collection<T> theInput, Collection<T> theToRemove) {
+		assert theInput != theToRemove;
+
+		if (theInput.isEmpty()) {
+			return theInput;
 		}
+
+		ArrayList<T> retVal = new ArrayList<>(theInput);
+		retVal.removeAll(theToRemove);
+		return retVal;
 	}
 
+
 	protected ResourceTable updateEntity(IBaseResource theResource, ResourceTable entity, Date theDeletedTimestampOrNull, Date theUpdateTime) {
-		return updateEntity(theResource, entity, theDeletedTimestampOrNull, true, true, theUpdateTime);
+		return updateEntity(theResource, entity, theDeletedTimestampOrNull, true, true, theUpdateTime, false, true);
 	}
 
 	private void validateChildReferences(IBase theElement, String thePath) {
@@ -1507,11 +1795,14 @@ public abstract class BaseHapiFhirDao<T extends IBaseResource> implements IDao {
 
 				for (IBase nextChild : values) {
 					IBaseReference nextRef = (IBaseReference) nextChild;
-					if (!isBlank(nextRef.getReferenceElement().getResourceType())) {
-						if (!nextRef.getReferenceElement().getValue().contains("?")) {
-							if (!validTypes.contains(nextRef.getReferenceElement().getResourceType())) {
-								throw new UnprocessableEntityException(
-										"Invalid reference found at path '" + newPath + "'. Resource type '" + nextRef.getReferenceElement().getResourceType() + "' is not valid for this path");
+					IIdType referencedId = nextRef.getReferenceElement();
+					if (!isBlank(referencedId.getResourceType())) {
+						if (!isLogicalReference(referencedId)) {
+							if (!referencedId.getValue().contains("?")) {
+								if (!validTypes.contains(referencedId.getResourceType())) {
+									throw new UnprocessableEntityException(
+										"Invalid reference found at path '" + newPath + "'. Resource type '" + referencedId.getResourceType() + "' is not valid for this path");
+								}
 							}
 						}
 					}
@@ -1546,26 +1837,43 @@ public abstract class BaseHapiFhirDao<T extends IBaseResource> implements IDao {
 		throw new ResourceVersionConflictException(firstMsg, oo);
 	}
 
+	protected void validateMetaCount(int theMetaCount) {
+		if (myConfig.getResourceMetaCountHardLimit() != null) {
+			if (theMetaCount > myConfig.getResourceMetaCountHardLimit()) {
+				throw new UnprocessableEntityException("Resource contains " + theMetaCount + " meta entries (tag/profile/security label), maximum is " + myConfig.getResourceMetaCountHardLimit());
+			}
+		}
+	}
+
 	/**
 	 * This method is invoked immediately before storing a new resource, or an update to an existing resource to allow the DAO to ensure that it is valid for persistence. By default, checks for the
 	 * "subsetted" tag and rejects resources which have it. Subclasses should call the superclass implementation to preserve this check.
-	 * 
-	 * @param theResource
-	 *            The resource that is about to be persisted
-	 * @param theEntityToSave
-	 *            TODO
+	 *
+	 * @param theResource     The resource that is about to be persisted
+	 * @param theEntityToSave TODO
 	 */
 	protected void validateResourceForStorage(T theResource, ResourceTable theEntityToSave) {
 		Object tag = null;
+
+		int totalMetaCount = 0;
+
 		if (theResource instanceof IResource) {
 			IResource res = (IResource) theResource;
 			TagList tagList = ResourceMetadataKeyEnum.TAG_LIST.get(res);
 			if (tagList != null) {
 				tag = tagList.getTag(Constants.TAG_SUBSETTED_SYSTEM, Constants.TAG_SUBSETTED_CODE);
+				totalMetaCount += tagList.size();
+			}
+			List<IdDt> profileList = ResourceMetadataKeyEnum.PROFILES.get(res);
+			if (profileList != null) {
+				totalMetaCount += profileList.size();
 			}
 		} else {
 			IAnyResource res = (IAnyResource) theResource;
 			tag = res.getMeta().getTag(Constants.TAG_SUBSETTED_SYSTEM, Constants.TAG_SUBSETTED_CODE);
+			totalMetaCount += res.getMeta().getTag().size();
+			totalMetaCount += res.getMeta().getProfile().size();
+			totalMetaCount += res.getMeta().getSecurity().size();
 		}
 
 		if (tag != null) {
@@ -1575,6 +1883,93 @@ public abstract class BaseHapiFhirDao<T extends IBaseResource> implements IDao {
 		String resName = getContext().getResourceDefinition(theResource).getName();
 		validateChildReferences(theResource, resName);
 
+		validateMetaCount(totalMetaCount);
+
+	}
+
+	/**
+	 * This method is used to create a set of all possible combinations of
+	 * parameters across a set of search parameters. An example of why
+	 * this is needed:
+	 * <p>
+	 *    Let's say we have a unique index on (Patient:gender AND Patient:name).
+	 *    Then we pass in <code>SMITH, John</code> with a gender of <code>male</code>.
+	 * </p>
+	 * <p>
+	 *		In this case, because the name parameter matches both first and last name,
+	 *		we now need two unique indexes:
+	 *	<ul>
+	 *	   <li>Patient?gender=male&amp;name=SMITH</li>
+	 *	   <li>Patient?gender=male&amp;name=JOHN</li>
+	 *	</ul>
+	 * </p>
+	 * <p>
+	 *    So this recursive algorithm calculates those
+	 * </p>
+	 *
+	 * @param theResourceType E.g. <code>Patient
+	 * @param thePartsChoices E.g. <code>[[gender=male], [name=SMITH, name=JOHN]]</code>
+	 */
+	public static Set<String> extractCompositeStringUniquesValueChains(String theResourceType, List<List<String>> thePartsChoices) {
+
+		for (List<String> next : thePartsChoices) {
+			for (Iterator<String> iter = next.iterator(); iter.hasNext(); ) {
+				if (isBlank(iter.next())) {
+					iter.remove();
+				}
+			}
+			if (next.isEmpty()) {
+				return Collections.emptySet();
+			}
+		}
+
+		if (thePartsChoices.isEmpty()) {
+			return Collections.emptySet();
+		}
+
+		Collections.sort(thePartsChoices, new Comparator<List<String>>() {
+			@Override
+			public int compare(List<String> o1, List<String> o2) {
+				String str1=null;
+				String str2=null;
+				if (o1.size() > 0) {
+					str1 = o1.get(0);
+				}
+				if (o2.size() > 0) {
+					str2 = o2.get(0);
+				}
+				return StringUtils.compare(str1, str2);
+			}
+		});
+
+		List<String> values = new ArrayList<>();
+		Set<String> queryStringsToPopulate = new HashSet<>();
+		extractCompositeStringUniquesValueChains(theResourceType, thePartsChoices, values, queryStringsToPopulate);
+		return queryStringsToPopulate;
+	}
+
+	private static void extractCompositeStringUniquesValueChains(String theResourceType, List<List<String>> thePartsChoices, List<String> theValues, Set<String> theQueryStringsToPopulate) {
+		if (thePartsChoices.size() > 0) {
+			List<String> nextList = thePartsChoices.get(0);
+			Collections.sort(nextList);
+			for (String nextChoice : nextList) {
+				theValues.add(nextChoice);
+				extractCompositeStringUniquesValueChains(theResourceType, thePartsChoices.subList(1, thePartsChoices.size()), theValues, theQueryStringsToPopulate);
+				theValues.remove(theValues.size() - 1);
+			}
+		} else {
+			if (theValues.size() > 0) {
+				StringBuilder uniqueString = new StringBuilder();
+				uniqueString.append(theResourceType);
+
+				for (int i = 0; i < theValues.size(); i++) {
+					uniqueString.append(i == 0 ? "?" : "&");
+					uniqueString.append(theValues.get(i));
+				}
+
+				theQueryStringsToPopulate.add(uniqueString.toString());
+			}
+		}
 	}
 
 	protected static boolean isValidPid(IIdType theId) {
@@ -1645,7 +2040,7 @@ public abstract class BaseHapiFhirDao<T extends IBaseResource> implements IDao {
 		StringBuilder b = new StringBuilder();
 		if (theResource instanceof IResource) {
 			IResource resource = (IResource) theResource;
-			List<XMLEvent> xmlEvents = resource.getText().getDiv().getValue();
+			List<XMLEvent> xmlEvents = XmlUtil.parse(resource.getText().getDiv().getValue());
 			if (xmlEvents != null) {
 				for (XMLEvent next : xmlEvents) {
 					if (next.isCharacters()) {
@@ -1658,8 +2053,7 @@ public abstract class BaseHapiFhirDao<T extends IBaseResource> implements IDao {
 			IDomainResource resource = (IDomainResource) theResource;
 			try {
 				String divAsString = resource.getText().getDivAsString();
-				XhtmlDt xhtml = new XhtmlDt(divAsString);
-				List<XMLEvent> xmlEvents = xhtml.getValue();
+				List<XMLEvent> xmlEvents = XmlUtil.parse(divAsString);
 				if (xmlEvents != null) {
 					for (XMLEvent next : xmlEvents) {
 						if (next.isCharacters()) {
@@ -1727,12 +2121,12 @@ public abstract class BaseHapiFhirDao<T extends IBaseResource> implements IDao {
 			String qualifier = null;
 			for (int i = 0; i < paramName.length(); i++) {
 				switch (paramName.charAt(i)) {
-				case '.':
-				case ':':
-					qualifier = paramName.substring(i);
-					paramName = paramName.substring(0, i);
-					i = Integer.MAX_VALUE - 1;
-					break;
+					case '.':
+					case ':':
+						qualifier = paramName.substring(i);
+						paramName = paramName.substring(0, i);
+						i = Integer.MAX_VALUE - 1;
+						break;
 				}
 			}
 
@@ -1756,7 +2150,7 @@ public abstract class BaseHapiFhirDao<T extends IBaseResource> implements IDao {
 			}
 
 			if (Constants.PARAM_HAS.equals(nextParamName)) {
-				IQueryParameterAnd<?> param = MethodUtil.parseQueryParams(theContext, RestSearchParameterTypeEnum.HAS, nextParamName, paramList);
+				IQueryParameterAnd<?> param = ParameterUtil.parseQueryParams(theContext, RestSearchParameterTypeEnum.HAS, nextParamName, paramList);
 				paramMap.add(nextParamName, param);
 				continue;
 			}
@@ -1786,17 +2180,17 @@ public abstract class BaseHapiFhirDao<T extends IBaseResource> implements IDao {
 				RuntimeSearchParam paramDef = theCallingDao.getSearchParamByName(resourceDef, nextParamName);
 				if (paramDef == null) {
 					throw new InvalidRequestException(
-							"Failed to parse match URL[" + theMatchUrl + "] - Resource type " + resourceDef.getName() + " does not have a parameter with name: " + nextParamName);
+						"Failed to parse match URL[" + theMatchUrl + "] - Resource type " + resourceDef.getName() + " does not have a parameter with name: " + nextParamName);
 				}
 
-				IQueryParameterAnd<?> param = MethodUtil.parseQueryParams(theContext, paramDef, nextParamName, paramList);
+				IQueryParameterAnd<?> param = ParameterUtil.parseQueryParams(theContext, paramDef, nextParamName, paramList);
 				paramMap.add(nextParamName, param);
 			}
 		}
 		return paramMap;
 	}
 
-	protected static List<NameValuePair> translateMatchUrl(String theMatchUrl) {
+	public static List<NameValuePair> translateMatchUrl(String theMatchUrl) {
 		List<NameValuePair> parameters;
 		String matchUrl = theMatchUrl;
 		int questionMarkIndex = matchUrl.indexOf('?');
@@ -1819,7 +2213,7 @@ public abstract class BaseHapiFhirDao<T extends IBaseResource> implements IDao {
 	public static void validateResourceType(BaseHasResource theEntity, String theResourceName) {
 		if (!theResourceName.equals(theEntity.getResourceType())) {
 			throw new ResourceNotFoundException(
-					"Resource with ID " + theEntity.getIdDt().getIdPart() + " exists but it is not of type " + theResourceName + ", found resource of type " + theEntity.getResourceType());
+				"Resource with ID " + theEntity.getIdDt().getIdPart() + " exists but it is not of type " + theResourceName + ", found resource of type " + theEntity.getResourceType());
 		}
 	}
 

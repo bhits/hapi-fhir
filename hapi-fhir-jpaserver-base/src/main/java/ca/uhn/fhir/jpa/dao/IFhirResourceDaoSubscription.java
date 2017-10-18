@@ -1,6 +1,7 @@
 package ca.uhn.fhir.jpa.dao;
 
-import java.util.List;
+import org.hl7.fhir.instance.model.api.IBaseResource;
+import org.hl7.fhir.instance.model.api.IIdType;
 
 /*
  * #%L
@@ -22,19 +23,8 @@ import java.util.List;
  * #L%
  */
 
-import org.hl7.fhir.instance.model.api.IBaseResource;
-import org.hl7.fhir.instance.model.api.IIdType;
-
 public interface IFhirResourceDaoSubscription<T extends IBaseResource> extends IFhirResourceDao<T> {
 
-	int pollForNewUndeliveredResources();
-
-	List<IBaseResource> getUndeliveredResourcesAndPurge(Long theSubscriptionPid);
-
 	Long getSubscriptionTablePidForSubscriptionResource(IIdType theId);
-
-	void purgeInactiveSubscriptions();
-
-	void pollForNewUndeliveredResourcesScheduler();
 
 }

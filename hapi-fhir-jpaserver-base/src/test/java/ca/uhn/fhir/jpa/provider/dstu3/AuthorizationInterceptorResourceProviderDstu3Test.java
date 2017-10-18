@@ -1,37 +1,29 @@
 package ca.uhn.fhir.jpa.provider.dstu3;
 
+import ca.uhn.fhir.rest.api.Constants;
+
 import static org.hamcrest.Matchers.startsWith;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.fail;
+import static org.junit.Assert.*;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.client.methods.HttpDelete;
-import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.*;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
-import org.hl7.fhir.dstu3.model.IdType;
-import org.hl7.fhir.dstu3.model.Observation;
+import org.hl7.fhir.dstu3.model.*;
 import org.hl7.fhir.dstu3.model.Observation.ObservationStatus;
-import org.hl7.fhir.dstu3.model.Patient;
 import org.hl7.fhir.instance.model.api.IIdType;
 import org.junit.AfterClass;
 import org.junit.Test;
 
 import ca.uhn.fhir.model.primitive.IdDt;
 import ca.uhn.fhir.rest.api.MethodOutcome;
-import ca.uhn.fhir.rest.method.RequestDetails;
-import ca.uhn.fhir.rest.server.Constants;
+import ca.uhn.fhir.rest.api.server.RequestDetails;
 import ca.uhn.fhir.rest.server.exceptions.ForbiddenOperationException;
 import ca.uhn.fhir.rest.server.interceptor.IServerInterceptor;
-import ca.uhn.fhir.rest.server.interceptor.auth.AuthorizationInterceptor;
-import ca.uhn.fhir.rest.server.interceptor.auth.IAuthRule;
-import ca.uhn.fhir.rest.server.interceptor.auth.PolicyEnum;
-import ca.uhn.fhir.rest.server.interceptor.auth.RuleBuilder;
+import ca.uhn.fhir.rest.server.interceptor.auth.*;
 import ca.uhn.fhir.util.TestUtil;
 
 public class AuthorizationInterceptorResourceProviderDstu3Test extends BaseResourceProviderDstu3Test {
@@ -183,6 +175,63 @@ public class AuthorizationInterceptorResourceProviderDstu3Test extends BaseResou
 
 	}
 
+	/**
+	 * See #667
+	 */
+	@Test
+	public void testBlockUpdatingPatientUserDoesnNotHaveAccessTo() throws IOException {
+		Patient pt1 = new Patient();
+		pt1.setActive(true);
+		final IIdType pid1 = ourClient.create().resource(pt1).execute().getId().toUnqualifiedVersionless();
+
+		Patient pt2 = new Patient();
+		pt2.setActive(false);
+		final IIdType pid2 = ourClient.create().resource(pt2).execute().getId().toUnqualifiedVersionless();
+
+		ourRestServer.registerInterceptor(new AuthorizationInterceptor(PolicyEnum.DENY) {
+			@Override
+			public List<IAuthRule> buildRuleList(RequestDetails theRequestDetails) {
+				return new RuleBuilder()
+					.allow().write().allResources().inCompartment("Patient", pid1).andThen()
+					.build();
+			}
+		});
+		
+		Observation obs = new Observation();
+		obs.setStatus(ObservationStatus.FINAL);
+		obs.setSubject(new Reference(pid1));
+		IIdType oid = ourClient.create().resource(obs).execute().getId().toUnqualified();
+
+		
+		unregisterInterceptors();
+		ourRestServer.registerInterceptor(new AuthorizationInterceptor(PolicyEnum.DENY) {
+			@Override
+			public List<IAuthRule> buildRuleList(RequestDetails theRequestDetails) {
+				return new RuleBuilder()
+						.allow().write().allResources().inCompartment("Patient", pid2).andThen()
+						.build();
+			}
+		});
+		
+		/*
+		 * Try to update to a new patient. The user has access to write to things in 
+		 * pid2's compartment, so this would normally be ok, but in this case they are overwriting
+		 * a resource that is already in pid1's compartment, which shouldn't be allowed.
+		 */
+		obs = new Observation();
+		obs.setId(oid);
+		obs.setStatus(ObservationStatus.FINAL);
+		obs.setSubject(new Reference(pid2));
+		
+		try {
+			ourClient.update().resource(obs).execute();
+			fail();
+		} catch (ForbiddenOperationException e) {
+			// good
+		}
+		
+	}
+	
 	@Test
 	public void testDeleteResourceConditional() throws IOException {
 		String methodName = "testDeleteResourceConditional";

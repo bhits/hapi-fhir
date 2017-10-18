@@ -16,23 +16,25 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.PropertySource;
 import org.springframework.core.env.Environment;
+import org.springframework.context.annotation.PropertySource;
 import org.springframework.orm.jpa.JpaTransactionManager;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
 
-import ca.uhn.fhir.jpa.config.BaseJavaConfigDstu2;
-import ca.uhn.fhir.jpa.config.WebsocketDstu2Config;
+import ca.uhn.fhir.jpa.config.BaseJavaConfigDstu3;
 import ca.uhn.fhir.jpa.dao.DaoConfig;
-import ca.uhn.fhir.jpa.util.SubscriptionsRequireManualActivationInterceptorDstu2;
+import ca.uhn.fhir.jpa.util.SubscriptionsRequireManualActivationInterceptorDstu3;
 import ca.uhn.fhir.rest.server.interceptor.IServerInterceptor;
 import ca.uhn.fhir.rest.server.interceptor.LoggingInterceptor;
 import ca.uhn.fhir.rest.server.interceptor.ResponseHighlighterInterceptor;
 
+/**
+ * This is the primary configuration file for the example server
+ */
 @Configuration
 @EnableTransactionManagement()
-//@Import(WebsocketDstu2Config.class)
 @PropertySource("classpath:database.properties")
-public class FhirServerConfig extends BaseJavaConfigDstu2 {
+public class FhirServerConfig extends BaseJavaConfigDstu3 {
 
 	@Autowired
 	protected Environment env;
@@ -92,6 +94,7 @@ public class FhirServerConfig extends BaseJavaConfigDstu2 {
 		extraProperties.put("hibernate.search.default.directory_provider", "filesystem");
 		extraProperties.put("hibernate.search.default.indexBase", "target/lucenefiles");
 		extraProperties.put("hibernate.search.lucene_version", "LUCENE_CURRENT");
+//		extraProperties.put("hibernate.search.default.worker.execution", "async");
 		return extraProperties;
 	}
 
@@ -119,7 +122,7 @@ public class FhirServerConfig extends BaseJavaConfigDstu2 {
 
 	@Bean(autowire = Autowire.BY_TYPE)
 	public IServerInterceptor subscriptionSecurityInterceptor() {
-		SubscriptionsRequireManualActivationInterceptorDstu2 retVal = new SubscriptionsRequireManualActivationInterceptorDstu2();
+		SubscriptionsRequireManualActivationInterceptorDstu3 retVal = new SubscriptionsRequireManualActivationInterceptorDstu3();
 		return retVal;
 	}
 

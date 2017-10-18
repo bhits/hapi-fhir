@@ -1,10 +1,10 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://maven.apache.org/POM/4.0.0" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 
 	<parent>
 		<groupId>ca.uhn.hapi.fhir</groupId>
 		<artifactId>hapi-deployable-pom</artifactId>
-		<version>2.3-SNAPSHOT</version>
+		<version>3.1.0-SNAPSHOT</version>
 		<relativePath>../hapi-deployable-pom/pom.xml</relativePath>
 	</parent>
 
@@ -14,6 +14,29 @@
 	<name>HAPI FHIR JPA Server</name>
 
 	<dependencies>
+<!--
+		<dependency>
+			<groupId>com.fasterxml.jackson.jaxrs</groupId>
+			<artifactId>jackson-jaxrs-json-provider</artifactId>
+			<version>${jackson.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>com.fasterxml.jackson.datatype</groupId>
+			<artifactId>jackson-datatype-hibernate4</artifactId>
+			<version>${jackson.version}</version>
+		</dependency>
+
+		<dependency>
+			<groupId>org.apache.commons</groupId>
+			<artifactId>commons-lang3</artifactId>
+			<version>3.5</version>
+		</dependency>
+-->
+		<dependency>
+			<groupId>net.sf.saxon</groupId>
+			<artifactId>Saxon-HE</artifactId>
+		</dependency>
+
 		<dependency>
 			<groupId>org.apache.commons</groupId>
 			<artifactId>commons-csv</artifactId>
@@ -33,7 +56,17 @@
 		</dependency>
 		<dependency>
 			<groupId>ca.uhn.hapi.fhir</groupId>
-			<artifactId>hapi-fhir-structures-dstu</artifactId>
+			<artifactId>hapi-fhir-client</artifactId>
+			<version>${project.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>ca.uhn.hapi.fhir</groupId>
+			<artifactId>hapi-fhir-server</artifactId>
+			<version>${project.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>ca.uhn.hapi.fhir</groupId>
+			<artifactId>hapi-fhir-validation</artifactId>
 			<version>${project.version}</version>
 		</dependency>
 		<dependency>
@@ -44,6 +77,11 @@
 		<dependency>
 			<groupId>ca.uhn.hapi.fhir</groupId>
 			<artifactId>hapi-fhir-structures-dstu3</artifactId>
+			<version>${project.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>ca.uhn.hapi.fhir</groupId>
+			<artifactId>hapi-fhir-structures-r4</artifactId>
 			<version>${project.version}</version>
 		</dependency>
 		<dependency>
@@ -59,6 +97,11 @@
 		<dependency>
 			<groupId>ca.uhn.hapi.fhir</groupId>
 			<artifactId>hapi-fhir-validation-resources-dstu3</artifactId>
+			<version>${project.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>ca.uhn.hapi.fhir</groupId>
+			<artifactId>hapi-fhir-validation-resources-r4</artifactId>
 			<version>${project.version}</version>
 		</dependency>
 
@@ -77,10 +120,21 @@
 			<artifactId>thymeleaf</artifactId>
 			<scope>test</scope>
 		</dependency>
+		<dependency>
+			<groupId>net.ttddyy</groupId>
+			<artifactId>datasource-proxy</artifactId>
+			<scope>test</scope>
+		</dependency>
 
 		<dependency>
 			<groupId>org.javassist</groupId>
 			<artifactId>javassist</artifactId>
+		</dependency>
+
+		<!-- Jackson -->
+		<dependency>
+			<groupId>com.fasterxml.jackson.core</groupId>
+			<artifactId>jackson-annotations</artifactId>
 		</dependency>
 
 		<dependency>
@@ -100,7 +154,16 @@
 			<scope>test</scope>
 		</dependency>
 
-		<!-- For UCUM -->
+		<dependency>
+			<groupId>org.thymeleaf</groupId>
+			<artifactId>thymeleaf</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.thymeleaf</groupId>
+			<artifactId>thymeleaf-spring4</artifactId>
+		</dependency>
+
+		<!-- For UCUM: TODO we should replace this with org.fhir UCUM -->
 		<dependency>
 			<groupId>org.jscience</groupId>
 			<artifactId>jscience</artifactId>
@@ -129,6 +192,16 @@
 			</exclusion> <exclusion> <artifactId>commons-logging</artifactId> <groupId>commons-logging</groupId> </exclusion> <exclusion> <artifactId>xpp3</artifactId> <groupId>xpp3</groupId> </exclusion> <exclusion> 
 			<artifactId>junit</artifactId> <groupId>junit</groupId> </exclusion> <exclusion> <artifactId>jdom</artifactId> <groupId>org.jdom</groupId> </exclusion> <exclusion> <artifactId>gson</artifactId> <groupId>com.google.code.gson</groupId> 
 			</exclusion> </exclusions> </dependency> -->
+
+		<!-- 
+		For some reason JavaDoc crashed during site generation unless we have this dependency
+		-->
+		<dependency>
+		    <groupId>javax.interceptor</groupId>
+		    <artifactId>javax.interceptor-api</artifactId>
+		    <scope>provided</scope>
+		</dependency>
+
 
 
 		<!-- Test Database -->
@@ -160,10 +233,12 @@
 		<!-- <dependency> <groupId>org.hsqldb</groupId> <artifactId>hsqldb</artifactId> <version>2.3.2</version> </dependency> -->
 
 		<!-- Spring -->
+		<!--
 		<dependency>
 			<groupId>aopalliance</groupId>
 			<artifactId>aopalliance</artifactId>
 		</dependency>
+		-->
 		<dependency>
 			<groupId>org.springframework</groupId>
 			<artifactId>spring-core</artifactId>
@@ -206,6 +281,12 @@
 			<groupId>org.springframework</groupId>
 			<artifactId>spring-messaging</artifactId>
 		</dependency>
+		<!--
+		<dependency>
+			<groupId>org.springframework.integration</groupId>
+			<artifactId>spring-integration-core</artifactId>
+		</dependency>
+		-->
 		<dependency>
 			<groupId>org.springframework</groupId>
 			<artifactId>spring-tx</artifactId>
@@ -232,11 +313,21 @@
 					<artifactId>xml-apis</artifactId>
 					<groupId>xml-apis</groupId>
 				</exclusion>
+				<exclusion>
+					<groupId>org.jboss.spec.javax.transaction</groupId>
+					<artifactId>jboss-transaction-api_1.2_spec</artifactId>
+				</exclusion>
 			</exclusions>
 		</dependency>
 		<dependency>
 			<groupId>org.hibernate</groupId>
 			<artifactId>hibernate-entitymanager</artifactId>
+			<exclusions>
+				<exclusion>
+					<groupId>org.jboss.spec.javax.transaction</groupId>
+					<artifactId>jboss-transaction-api_1.2_spec</artifactId>
+				</exclusion>
+			</exclusions>
 		</dependency>
 		<dependency>
 			<groupId>org.hibernate</groupId>
@@ -269,6 +360,11 @@
 		<dependency>
 			<groupId>javax.mail</groupId>
 			<artifactId>javax.mail-api</artifactId>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
+			<groupId>com.sun.mail</groupId>
+			<artifactId>javax.mail</artifactId>
 		</dependency>
 		<dependency>
 			<groupId>javax.validation</groupId>
@@ -348,11 +444,29 @@
 			<scope>test</scope>
 		</dependency>
 
+		<dependency>
+			<groupId>com.icegreen</groupId>
+			<artifactId>greenmail</artifactId>
+			<scope>test</scope>
+			<exclusions>
+				<exclusion>
+					<groupId>com.sun.mail</groupId>
+					<artifactId>javax.mail</artifactId>
+				</exclusion>
+			</exclusions>
+		</dependency>
+		<dependency>
+			<groupId>com.icegreen</groupId>
+			<artifactId>greenmail-spring</artifactId>
+			<scope>test</scope>
+		</dependency>
+
 	</dependencies>
 
 
 	<properties>
 		<skip-hib4>false</skip-hib4>
+		<jackson.version>2.7.1</jackson.version>
 	</properties>
 
 	<build>
@@ -455,6 +569,7 @@
 				<artifactId>hapi-tinder-plugin</artifactId>
 				<version>${project.version}</version>
 				<executions>
+					<!-- 
 					<execution>
 						<id>build_dstu1</id>
 						<goals>
@@ -468,6 +583,7 @@
 							<baseResourceNames></baseResourceNames>
 						</configuration>
 					</execution>
+					-->
 					<execution>
 						<id>build_dstu2</id>
 						<goals>
@@ -496,17 +612,27 @@
 							<targetResourceSpringBeansFile>hapi-fhir-server-resourceproviders-dstu3.xml</targetResourceSpringBeansFile>
 							<baseResourceNames></baseResourceNames>
 							<excludeResourceNames>
-								<!-- <excludeResourceName>OperationDefinition</excludeResourceName> <excludeResourceName>OperationOutcome</excludeResourceName> -->
+							</excludeResourceNames>
+						</configuration>
+					</execution>
+					<execution>
+						<id>build_r4</id>
+						<goals>
+							<goal>generate-jparest-server</goal>
+						</goals>
+						<configuration>
+							<version>r4</version>
+							<configPackageBase>ca.uhn.fhir.jpa.config</configPackageBase>
+							<packageBase>ca.uhn.fhir.jpa.rp.r4</packageBase>
+							<targetResourceSpringBeansFile>hapi-fhir-server-resourceproviders-r4.xml</targetResourceSpringBeansFile>
+							<baseResourceNames></baseResourceNames>
+							<excludeResourceNames>
 							</excludeResourceNames>
 						</configuration>
 					</execution>
 				</executions>
+
 				<dependencies>
-					<dependency>
-						<groupId>ca.uhn.hapi.fhir</groupId>
-						<artifactId>hapi-fhir-structures-dstu</artifactId>
-						<version>${project.version}</version>
-					</dependency>
 					<dependency>
 						<groupId>ca.uhn.hapi.fhir</groupId>
 						<artifactId>hapi-fhir-structures-dstu2</artifactId>
@@ -517,6 +643,12 @@
 						<artifactId>hapi-fhir-structures-dstu3</artifactId>
 						<version>${project.version}</version>
 					</dependency>
+					<dependency>
+						<groupId>ca.uhn.hapi.fhir</groupId>
+						<artifactId>hapi-fhir-structures-r4</artifactId>
+						<version>${project.version}</version>
+					</dependency>
+
 					<dependency>
 						<groupId>ca.uhn.hapi.fhir</groupId>
 						<artifactId>hapi-fhir-validation-resources-dstu3</artifactId>
@@ -578,18 +710,32 @@
 						<artifactId>maven-surefire-plugin</artifactId>
 						<configuration>
 							<forkCount>1</forkCount>
+							<excludes>
+								<exclude>**/stresstest/*</exclude>
+							</excludes>
 						</configuration>
 					</plugin>
 				</plugins>
 			</build>
 		</profile>
-		<!-- <profile> <id>DIST</id> <build> <plugins> <plugin> <groupId>de.juplo</groupId> <artifactId>hibernate4-maven-plugin</artifactId> <configuration> <force>true</force> <target>SCRIPT</target> <skip>${skip-hib4}</skip> 
-			</configuration> <dependencies> <dependency> <groupId>org.hibernate</groupId> <artifactId>hibernate-core</artifactId> <version>${hibernate_version}</version> </dependency> </dependencies> <executions> 
-			<execution> <id>o10g</id> <goals> <goal>export</goal> </goals> <phase>test</phase> <configuration> <hibernateDialect>org.hibernate.dialect.Oracle10gDialect</hibernateDialect> <outputFile>${project.build.directory}/schema_oracle_10g.sql</outputFile> 
-			</configuration> </execution> <execution> <id>derby</id> <goals> <goal>export</goal> </goals> <phase>test</phase> <configuration> <hibernateDialect>org.hibernate.dialect.DerbyTenSevenDialect</hibernateDialect> 
-			<outputFile>${project.build.directory}/schema_derby.sql</outputFile> </configuration> </execution> <execution> <id>hsql</id> <goals> <goal>export</goal> </goals> <phase>test</phase> <configuration> <hibernateDialect>org.hibernate.dialect.HSQLDialect</hibernateDialect> 
-			<outputFile>${project.build.directory}/schema_hsql.sql</outputFile> </configuration> </execution> <execution> <id>mysql5</id> <goals> <goal>export</goal> </goals> <phase>test</phase> <configuration> <hibernateDialect>org.hibernate.dialect.MySQL5Dialect</hibernateDialect> 
-			<outputFile>${project.build.directory}/schema_mysql_5.sql</outputFile> </configuration> </execution> </executions> </plugin> </plugins> </build> </profile> -->
-	</profiles>
+		<profile>
+			<id>MINPARALLEL</id>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>org.apache.maven.plugins</groupId>
+						<artifactId>maven-surefire-plugin</artifactId>
+						<configuration>
+							<forkCount>2</forkCount>
+							<reuseForks>true</reuseForks>
+							<excludes>
+								<exclude>**/stresstest/*</exclude>
+							</excludes>
+						</configuration>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+</profiles>
 
 </project>

@@ -56,14 +56,11 @@ public class TdlDstu3Config extends BaseJavaConfigDstu3 {
 		retVal.setAllowExternalReferences(true);
 		retVal.getTreatBaseUrlsAsLocal().add("http://fhirtest.uhn.ca/testDataLibraryStu3");
 		retVal.getTreatBaseUrlsAsLocal().add("https://fhirtest.uhn.ca/testDataLibraryStu3");
+		retVal.setIndexMissingFields(DaoConfig.IndexEnabledEnum.ENABLED);
+		retVal.setCountSearchResultsUpTo(TestR4Config.COUNT_SEARCH_RESULTS_UP_TO);
 		return retVal;
 	}
 
-	@Bean 
-	public IServerInterceptor securityInterceptor() {
-		return new TdlSecurityInterceptor();
-	}
-	
 	@Bean(name = "myPersistenceDataSourceDstu3", destroyMethod = "close")
 	public DataSource dataSource() {
 		BasicDataSource retVal = new BasicDataSource();
@@ -74,7 +71,7 @@ public class TdlDstu3Config extends BaseJavaConfigDstu3 {
 		retVal.setPassword("SA");
 		return retVal;
 	}
-
+	
 	@Bean()
 	public LocalContainerEntityManagerFactoryBean entityManagerFactory() {
 		LocalContainerEntityManagerFactoryBean retVal = new LocalContainerEntityManagerFactoryBean();
@@ -142,8 +139,13 @@ public class TdlDstu3Config extends BaseJavaConfigDstu3 {
 		responseValidator.addExcludeOperationType(RestOperationTypeEnum.SEARCH_TYPE);
 		responseValidator.addValidatorModule(instanceValidatorDstu3());
 		responseValidator.setIgnoreValidatorExceptions(true);
-		
+
 		return responseValidator;
+	}
+
+	@Bean
+	public IServerInterceptor securityInterceptor() {
+		return new TdlSecurityInterceptor();
 	}
 
 	@Bean(autowire = Autowire.BY_TYPE)

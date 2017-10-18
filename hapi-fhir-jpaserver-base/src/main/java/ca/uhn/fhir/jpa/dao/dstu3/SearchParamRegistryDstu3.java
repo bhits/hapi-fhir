@@ -23,145 +23,154 @@ package ca.uhn.fhir.jpa.dao.dstu3;
 import static org.apache.commons.lang3.StringUtils.isBlank;
 import static org.apache.commons.lang3.StringUtils.isNotBlank;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Set;
 
+import ca.uhn.fhir.jpa.search.JpaRuntimeSearchParam;
+import ca.uhn.fhir.jpa.util.JpaConstants;
 import org.apache.commons.lang3.time.DateUtils;
 import org.hl7.fhir.dstu3.model.CodeType;
+import org.hl7.fhir.dstu3.model.Extension;
 import org.hl7.fhir.dstu3.model.SearchParameter;
 import org.hl7.fhir.instance.model.api.IBaseResource;
 import org.hl7.fhir.instance.model.api.IIdType;
+import org.hl7.fhir.instance.model.api.IPrimitiveType;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import ca.uhn.fhir.context.RuntimeSearchParam;
 import ca.uhn.fhir.context.RuntimeSearchParam.RuntimeSearchParamStatusEnum;
-import ca.uhn.fhir.jpa.dao.BaseSearchParamRegistry;
-import ca.uhn.fhir.jpa.dao.DaoConfig;
-import ca.uhn.fhir.jpa.dao.IFhirResourceDao;
-import ca.uhn.fhir.jpa.dao.SearchParameterMap;
+import ca.uhn.fhir.jpa.dao.*;
 import ca.uhn.fhir.jpa.util.StopWatch;
-import ca.uhn.fhir.rest.method.RestSearchParameterTypeEnum;
-import ca.uhn.fhir.rest.server.IBundleProvider;
+import ca.uhn.fhir.rest.api.RestSearchParameterTypeEnum;
+import ca.uhn.fhir.rest.api.server.IBundleProvider;
 
 public class SearchParamRegistryDstu3 extends BaseSearchParamRegistry {
 	private static final org.slf4j.Logger ourLog = org.slf4j.LoggerFactory.getLogger(SearchParamRegistryDstu3.class);
+	public static final int MAX_MANAGED_PARAM_COUNT = 10000;
 
 	private volatile Map<String, Map<String, RuntimeSearchParam>> myActiveSearchParams;
 
 	@Autowired
 	private DaoConfig myDaoConfig;
 
-	private long myLastRefresh;
+	private volatile long myLastRefresh;
 
 	@Autowired
 	private IFhirResourceDao<SearchParameter> mySpDao;
 
 	@Override
 	public void forceRefresh() {
-		myLastRefresh = 0;
+		synchronized (this) {
+			myLastRefresh = 0;
+		}
 	}
 
 	@Override
 	public Map<String, Map<String, RuntimeSearchParam>> getActiveSearchParams() {
-		refreshCacheIfNeccesary();
+		refreshCacheIfNecessary();
 		return myActiveSearchParams;
 	}
 
 	@Override
 	public Map<String, RuntimeSearchParam> getActiveSearchParams(String theResourceName) {
-		refreshCacheIfNeccesary();
+		refreshCacheIfNecessary();
 		return myActiveSearchParams.get(theResourceName);
 	}
 
 	private Map<String, RuntimeSearchParam> getSearchParamMap(Map<String, Map<String, RuntimeSearchParam>> searchParams, String theResourceName) {
 		Map<String, RuntimeSearchParam> retVal = searchParams.get(theResourceName);
 		if (retVal == null) {
-			retVal = new HashMap<String, RuntimeSearchParam>();
+			retVal = new HashMap<>();
 			searchParams.put(theResourceName, retVal);
 		}
 		return retVal;
 	}
 
-	private void refreshCacheIfNeccesary() {
+	protected void refreshCacheIfNecessary() {
 		long refreshInterval = 60 * DateUtils.MILLIS_PER_MINUTE;
 		if (System.currentTimeMillis() - refreshInterval > myLastRefresh) {
-			StopWatch sw = new StopWatch();
+			synchronized (this) {
+				if (System.currentTimeMillis() - refreshInterval > myLastRefresh) {
+					StopWatch sw = new StopWatch();
 
-			Map<String, Map<String, RuntimeSearchParam>> searchParams = new HashMap<String, Map<String, RuntimeSearchParam>>();
-			for (Entry<String, Map<String, RuntimeSearchParam>> nextBuiltInEntry : getBuiltInSearchParams().entrySet()) {
-				for (RuntimeSearchParam nextParam : nextBuiltInEntry.getValue().values()) {
-					String nextResourceName = nextBuiltInEntry.getKey();
-					getSearchParamMap(searchParams, nextResourceName).put(nextParam.getName(), nextParam);
-				}
-			}
-
-			IBundleProvider allSearchParamsBp = mySpDao.search(new SearchParameterMap());
-			int size = allSearchParamsBp.size();
-
-			// Just in case..
-			if (size > 10000) {
-				ourLog.warn("Unable to support >10000 search params!");
-				size = 10000;
-			}
-
-			List<IBaseResource> allSearchParams = allSearchParamsBp.getResources(0, size);
-			for (IBaseResource nextResource : allSearchParams) {
-				SearchParameter nextSp = (SearchParameter) nextResource;
-				RuntimeSearchParam runtimeSp = toRuntimeSp(nextSp);
-				if (runtimeSp == null) {
-					continue;
-				}
-
-				int dotIdx = runtimeSp.getPath().indexOf('.');
-				if (dotIdx == -1) {
-					ourLog.warn("Can not determine resource type of {}", runtimeSp.getPath());
-					continue;
-				}
-				String resourceType = runtimeSp.getPath().substring(0, dotIdx);
-
-				Map<String, RuntimeSearchParam> searchParamMap = getSearchParamMap(searchParams, resourceType);
-				String name = runtimeSp.getName();
-				if (myDaoConfig.isDefaultSearchParamsCanBeOverridden() || !searchParamMap.containsKey(name)) {
-					searchParamMap.put(name, runtimeSp);
-				}
-			}
-
-			Map<String, Map<String, RuntimeSearchParam>> activeSearchParams = new HashMap<String, Map<String, RuntimeSearchParam>>();
-			for (Entry<String, Map<String, RuntimeSearchParam>> nextEntry : searchParams.entrySet()) {
-				for (RuntimeSearchParam nextSp : nextEntry.getValue().values()) {
-					String nextName = nextSp.getName();
-					if (nextSp.getStatus() != RuntimeSearchParamStatusEnum.ACTIVE) {
-						nextSp = null;
+					Map<String, Map<String, RuntimeSearchParam>> searchParams = new HashMap<>();
+					for (Entry<String, Map<String, RuntimeSearchParam>> nextBuiltInEntry : getBuiltInSearchParams().entrySet()) {
+						for (RuntimeSearchParam nextParam : nextBuiltInEntry.getValue().values()) {
+							String nextResourceName = nextBuiltInEntry.getKey();
+							getSearchParamMap(searchParams, nextResourceName).put(nextParam.getName(), nextParam);
+						}
 					}
 
-					if (!activeSearchParams.containsKey(nextEntry.getKey())) {
-						activeSearchParams.put(nextEntry.getKey(), new HashMap<String, RuntimeSearchParam>());
-					}
-					if (activeSearchParams.containsKey(nextEntry.getKey())) {
-						ourLog.debug("Replacing existing/built in search param {}:{} with new one", nextEntry.getKey(), nextName);
+					SearchParameterMap params = new SearchParameterMap();
+					params.setLoadSynchronousUpTo(MAX_MANAGED_PARAM_COUNT);
+
+					IBundleProvider allSearchParamsBp = mySpDao.search(params);
+					int size = allSearchParamsBp.size();
+
+					// Just in case..
+					if (size > MAX_MANAGED_PARAM_COUNT) {
+						ourLog.warn("Unable to support >" + MAX_MANAGED_PARAM_COUNT + " search params!");
+						size = MAX_MANAGED_PARAM_COUNT;
 					}
 
-					if (nextSp != null) {
-						activeSearchParams.get(nextEntry.getKey()).put(nextName, nextSp);
-					} else {
-						activeSearchParams.get(nextEntry.getKey()).remove(nextName);
+					List<IBaseResource> allSearchParams = allSearchParamsBp.getResources(0, size);
+					for (IBaseResource nextResource : allSearchParams) {
+						SearchParameter nextSp = (SearchParameter) nextResource;
+						JpaRuntimeSearchParam runtimeSp = toRuntimeSp(nextSp);
+						if (runtimeSp == null) {
+							continue;
+						}
+
+						for (org.hl7.fhir.dstu3.model.CodeType nextBaseName : nextSp.getBase()) {
+							String resourceType = nextBaseName.getValue();
+							if (isBlank(resourceType)) {
+								continue;
+							}
+
+							Map<String, RuntimeSearchParam> searchParamMap = getSearchParamMap(searchParams, resourceType);
+							String name = runtimeSp.getName();
+							if (myDaoConfig.isDefaultSearchParamsCanBeOverridden() || !searchParamMap.containsKey(name)) {
+								searchParamMap.put(name, runtimeSp);
+							}
+
+						}
 					}
+
+					Map<String, Map<String, RuntimeSearchParam>> activeSearchParams = new HashMap<>();
+					for (Entry<String, Map<String, RuntimeSearchParam>> nextEntry : searchParams.entrySet()) {
+						for (RuntimeSearchParam nextSp : nextEntry.getValue().values()) {
+							String nextName = nextSp.getName();
+							if (nextSp.getStatus() != RuntimeSearchParamStatusEnum.ACTIVE) {
+								nextSp = null;
+							}
+
+							if (!activeSearchParams.containsKey(nextEntry.getKey())) {
+								activeSearchParams.put(nextEntry.getKey(), new HashMap<String, RuntimeSearchParam>());
+							}
+							if (activeSearchParams.containsKey(nextEntry.getKey())) {
+								ourLog.debug("Replacing existing/built in search param {}:{} with new one", nextEntry.getKey(), nextName);
+							}
+
+							if (nextSp != null) {
+								activeSearchParams.get(nextEntry.getKey()).put(nextName, nextSp);
+							} else {
+								activeSearchParams.get(nextEntry.getKey()).remove(nextName);
+							}
+						}
+					}
+
+					myActiveSearchParams = activeSearchParams;
+
+					super.populateActiveSearchParams(activeSearchParams);
+
+					myLastRefresh = System.currentTimeMillis();
+					ourLog.info("Refreshed search parameter cache in {}ms", sw.getMillis());
 				}
 			}
-
-			myActiveSearchParams = activeSearchParams;
-
-			myLastRefresh = System.currentTimeMillis();
-			ourLog.info("Refreshed search parameter cache in {}ms", sw.getMillis());
 		}
 	}
 
-	private RuntimeSearchParam toRuntimeSp(SearchParameter theNextSp) {
+	private JpaRuntimeSearchParam toRuntimeSp(SearchParameter theNextSp) {
 		String name = theNextSp.getCode();
 		String description = theNextSp.getDescription();
 		String path = theNextSp.getExpression();
@@ -206,6 +215,9 @@ public class SearchParamRegistryDstu3 extends BaseSearchParamRegistry {
 			case RETIRED:
 				status = RuntimeSearchParamStatusEnum.RETIRED;
 				break;
+			case UNKNOWN:
+				status = RuntimeSearchParamStatusEnum.UNKNOWN;
+				break;
 			case NULL:
 				break;
 			}
@@ -214,12 +226,31 @@ public class SearchParamRegistryDstu3 extends BaseSearchParamRegistry {
 		Set<String> targets = toStrings(theNextSp.getTarget());
 
 		if (isBlank(name) || isBlank(path) || paramType == null) {
-			return null;
+			if (paramType != RestSearchParameterTypeEnum.COMPOSITE) {
+				return null;
+			}
 		}
 
 		IIdType id = theNextSp.getIdElement();
 		String uri = "";
-		RuntimeSearchParam retVal = new RuntimeSearchParam(id, uri, name, description, path, paramType, null, providesMembershipInCompartments, targets, status);
+		boolean unique = false;
+
+		List<Extension> uniqueExts = theNextSp.getExtensionsByUrl(JpaConstants.EXT_SP_UNIQUE);
+		if (uniqueExts.size() > 0) {
+			IPrimitiveType<?> uniqueExtsValuePrimitive = uniqueExts.get(0).getValueAsPrimitive();
+			if (uniqueExtsValuePrimitive != null) {
+				if ("true".equalsIgnoreCase(uniqueExtsValuePrimitive.getValueAsString())) {
+					unique = true;
+				}
+			}
+		}
+
+		List<JpaRuntimeSearchParam.Component> components = new ArrayList<>();
+		for (SearchParameter.SearchParameterComponentComponent next : theNextSp.getComponent()) {
+			components.add(new JpaRuntimeSearchParam.Component(next.getExpression(), next.getDefinition()));
+		}
+
+		JpaRuntimeSearchParam retVal = new JpaRuntimeSearchParam(id, uri, name, description, path, paramType, providesMembershipInCompartments, targets, status, unique, components, theNextSp.getBase());
 		return retVal;
 	}
 

@@ -1,5 +1,40 @@
 package ca.uhn.fhir.jpa.term;
 
+import ca.uhn.fhir.context.FhirContext;
+import ca.uhn.fhir.jpa.dao.DaoMethodOutcome;
+import ca.uhn.fhir.jpa.dao.IFhirResourceDaoCodeSystem;
+import ca.uhn.fhir.jpa.entity.ResourceTable;
+import ca.uhn.fhir.jpa.entity.TermCodeSystem;
+import ca.uhn.fhir.jpa.entity.TermCodeSystemVersion;
+import ca.uhn.fhir.jpa.entity.TermConcept;
+import ca.uhn.fhir.jpa.util.StopWatch;
+import ca.uhn.fhir.rest.api.server.RequestDetails;
+import ca.uhn.fhir.rest.server.exceptions.BaseServerResponseException;
+import ca.uhn.fhir.rest.server.exceptions.InternalErrorException;
+import ca.uhn.fhir.rest.server.exceptions.InvalidRequestException;
+import ca.uhn.fhir.util.CoverageIgnore;
+import ca.uhn.fhir.util.UrlUtil;
+import org.apache.lucene.search.Query;
+import org.hibernate.search.jpa.FullTextEntityManager;
+import org.hibernate.search.jpa.FullTextQuery;
+import org.hibernate.search.query.dsl.BooleanJunction;
+import org.hibernate.search.query.dsl.QueryBuilder;
+import org.hl7.fhir.dstu3.hapi.ctx.HapiWorkerContext;
+import org.hl7.fhir.dstu3.hapi.ctx.IValidationSupport;
+import org.hl7.fhir.dstu3.model.*;
+import org.hl7.fhir.dstu3.model.CodeSystem.CodeSystemContentMode;
+import org.hl7.fhir.dstu3.model.CodeSystem.ConceptDefinitionComponent;
+import org.hl7.fhir.dstu3.model.ValueSet.*;
+import org.hl7.fhir.dstu3.terminologies.ValueSetExpander.ValueSetExpansionOutcome;
+import org.hl7.fhir.instance.model.api.IBaseResource;
+import org.hl7.fhir.instance.model.api.IIdType;
+import org.hl7.fhir.utilities.validation.ValidationMessage.IssueSeverity;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.*;
+
 import static org.apache.commons.lang3.StringUtils.isBlank;
 import static org.apache.commons.lang3.StringUtils.isNotBlank;
 
@@ -22,56 +57,6 @@ import static org.apache.commons.lang3.StringUtils.isNotBlank;
  * limitations under the License.
  * #L%
  */
-
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-
-import org.apache.lucene.search.Query;
-import org.hibernate.search.jpa.FullTextEntityManager;
-import org.hibernate.search.jpa.FullTextQuery;
-import org.hibernate.search.query.dsl.BooleanJunction;
-import org.hibernate.search.query.dsl.QueryBuilder;
-import org.hl7.fhir.dstu3.hapi.validation.HapiWorkerContext;
-import org.hl7.fhir.dstu3.hapi.validation.IValidationSupport;
-import org.hl7.fhir.dstu3.model.CodeSystem;
-import org.hl7.fhir.dstu3.model.CodeSystem.CodeSystemContentMode;
-import org.hl7.fhir.dstu3.model.CodeSystem.ConceptDefinitionComponent;
-import org.hl7.fhir.dstu3.model.CodeableConcept;
-import org.hl7.fhir.dstu3.model.Coding;
-import org.hl7.fhir.dstu3.model.OperationOutcome.IssueSeverity;
-import org.hl7.fhir.dstu3.model.StructureDefinition;
-import org.hl7.fhir.dstu3.model.ValueSet;
-import org.hl7.fhir.dstu3.model.ValueSet.ConceptReferenceComponent;
-import org.hl7.fhir.dstu3.model.ValueSet.ConceptSetComponent;
-import org.hl7.fhir.dstu3.model.ValueSet.ConceptSetFilterComponent;
-import org.hl7.fhir.dstu3.model.ValueSet.FilterOperator;
-import org.hl7.fhir.dstu3.model.ValueSet.ValueSetExpansionComponent;
-import org.hl7.fhir.dstu3.model.ValueSet.ValueSetExpansionContainsComponent;
-import org.hl7.fhir.dstu3.terminologies.ValueSetExpander;
-import org.hl7.fhir.dstu3.terminologies.ValueSetExpander.ValueSetExpansionOutcome;
-import org.hl7.fhir.instance.model.api.IBaseResource;
-import org.hl7.fhir.instance.model.api.IIdType;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
-
-import ca.uhn.fhir.context.FhirContext;
-import ca.uhn.fhir.jpa.dao.DaoMethodOutcome;
-import ca.uhn.fhir.jpa.dao.IFhirResourceDaoCodeSystem;
-import ca.uhn.fhir.jpa.entity.ResourceTable;
-import ca.uhn.fhir.jpa.entity.TermCodeSystem;
-import ca.uhn.fhir.jpa.entity.TermCodeSystemVersion;
-import ca.uhn.fhir.jpa.entity.TermConcept;
-import ca.uhn.fhir.jpa.util.StopWatch;
-import ca.uhn.fhir.rest.method.RequestDetails;
-import ca.uhn.fhir.rest.server.exceptions.BaseServerResponseException;
-import ca.uhn.fhir.rest.server.exceptions.InternalErrorException;
-import ca.uhn.fhir.rest.server.exceptions.InvalidRequestException;
-import ca.uhn.fhir.util.CoverageIgnore;
-import ca.uhn.fhir.util.UrlUtil;
 
 public class HapiTerminologySvcDstu3 extends BaseHapiTerminologySvc implements IValidationSupport, IHapiTerminologySvcDstu3 {
 	private static final org.slf4j.Logger ourLog = org.slf4j.LoggerFactory.getLogger(HapiTerminologySvcDstu3.class);
@@ -275,6 +260,11 @@ public class HapiTerminologySvcDstu3 extends BaseHapiTerminologySvc implements I
 	}
 
 	@Override
+	public List<IBaseResource> fetchAllConformanceResources(FhirContext theContext) {
+		return null;
+	}
+
+	@Override
 	public List<VersionIndependentConcept> expandValueSet(String theValueSet) {
 		ValueSet source = new ValueSet();
 		source.getCompose().addInclude().addValueSet(theValueSet);
@@ -335,7 +325,7 @@ public class HapiTerminologySvcDstu3 extends BaseHapiTerminologySvc implements I
 		IIdType csId = createOutcome.getId().toUnqualifiedVersionless();
 		if (createOutcome.getCreated() != Boolean.TRUE) {
 			CodeSystem existing = myCodeSystemResourceDao.read(csId, theRequestDetails);
-			csId = myCodeSystemResourceDao.update(existing, theRequestDetails).getId();
+			csId = myCodeSystemResourceDao.update(existing, null, false, true, theRequestDetails).getId();
 
 			ourLog.info("Created new version of CodeSystem, got ID: {}", csId.toUnqualified().getValue());
 		}
