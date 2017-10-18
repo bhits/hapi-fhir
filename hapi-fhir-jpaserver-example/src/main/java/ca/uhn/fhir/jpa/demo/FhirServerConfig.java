@@ -13,10 +13,8 @@ import org.springframework.beans.factory.annotation.Autowire;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.PropertySource;
 import org.springframework.core.env.Environment;
-import org.springframework.context.annotation.PropertySource;
 import org.springframework.orm.jpa.JpaTransactionManager;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
@@ -62,10 +60,10 @@ public class FhirServerConfig extends BaseJavaConfigDstu3 {
 	@Bean(destroyMethod = "close")
 	public DataSource dataSource() throws SQLException  {
 		BasicDataSource retVal = new BasicDataSource();
-		retVal.setDriver(new com.mysql.jdbc.Driver());
-		retVal.setUrl("jdbc:mysql://localhost:3306/hapifhir");
-		retVal.setUsername("root");
-		retVal.setPassword("admin");
+		retVal.setDriver(new com.mysql.cj.jdbc.Driver());
+		retVal.setUrl(env.getProperty("jdbc.url"));
+		retVal.setUsername(env.getProperty("jdbc.username"));
+		retVal.setPassword(env.getProperty("jdbc.password"));
 		return retVal;
 	}
 
@@ -82,7 +80,7 @@ public class FhirServerConfig extends BaseJavaConfigDstu3 {
 
 	private Properties jpaProperties() {
 		Properties extraProperties = new Properties();
-		extraProperties.put("hibernate.dialect", org.hibernate.dialect.MySQLDialect.class.getName());
+		extraProperties.put("hibernate.dialect", "org.hibernate.dialect.MySQL5InnoDBDialect");
 		extraProperties.put("hibernate.format_sql", "true");
 		extraProperties.put("hibernate.show_sql", "false");
 		extraProperties.put("hibernate.hbm2ddl.auto", "update");
