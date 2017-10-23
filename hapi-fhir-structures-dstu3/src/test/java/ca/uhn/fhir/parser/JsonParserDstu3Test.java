@@ -1,60 +1,5 @@
 package ca.uhn.fhir.parser;
 
-import static org.apache.commons.lang3.StringUtils.countMatches;
-import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.stringContainsInOrder;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Matchers.isNull;
-import static org.mockito.Mockito.atLeastOnce;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-
-import java.io.IOException;
-import java.math.BigDecimal;
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Date;
-import java.util.HashSet;
-import java.util.List;
-import java.util.UUID;
-
-import org.apache.commons.io.IOUtils;
-import org.hamcrest.Matchers;
-import org.hamcrest.core.StringContains;
-import org.hl7.fhir.dstu3.model.*;
-import org.hl7.fhir.dstu3.model.Address.AddressUse;
-import org.hl7.fhir.dstu3.model.Address.AddressUseEnumFactory;
-import org.hl7.fhir.dstu3.model.Bundle.BundleEntryComponent;
-import org.hl7.fhir.dstu3.model.Bundle.BundleType;
-import org.hl7.fhir.dstu3.model.Condition.ConditionVerificationStatus;
-import org.hl7.fhir.dstu3.model.Conformance.UnknownContentCode;
-import org.hl7.fhir.dstu3.model.Enumerations.AdministrativeGender;
-import org.hl7.fhir.dstu3.model.Identifier.IdentifierUse;
-import org.hl7.fhir.dstu3.model.Observation.ObservationStatus;
-import org.hl7.fhir.utilities.xhtml.XhtmlNode;
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Assert;
-import org.junit.Ignore;
-import org.junit.Test;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Mockito;
-
-import com.google.common.collect.Sets;
-
 import ca.uhn.fhir.context.FhirContext;
 import ca.uhn.fhir.narrative.DefaultThymeleafNarrativeGenerator;
 import ca.uhn.fhir.parser.IParserErrorHandler.IParseLocation;
@@ -62,13 +7,48 @@ import ca.uhn.fhir.parser.PatientWithExtendedContactDstu3.CustomContactComponent
 import ca.uhn.fhir.parser.XmlParserDstu3Test.TestPatientFor327;
 import ca.uhn.fhir.parser.json.JsonLikeValue.ScalarType;
 import ca.uhn.fhir.parser.json.JsonLikeValue.ValueType;
-import ca.uhn.fhir.rest.server.Constants;
 import ca.uhn.fhir.util.TestUtil;
 import ca.uhn.fhir.validation.FhirValidator;
 import ca.uhn.fhir.validation.ValidationResult;
+import com.google.common.base.Charsets;
+import com.google.common.collect.Sets;
 import net.sf.json.JSON;
 import net.sf.json.JSONSerializer;
 import net.sf.json.JsonConfig;
+import org.apache.commons.io.IOUtils;
+import org.hamcrest.Matchers;
+import org.hamcrest.core.StringContains;
+import org.hl7.fhir.dstu3.model.Address.AddressUse;
+import org.hl7.fhir.dstu3.model.Address.AddressUseEnumFactory;
+import org.hl7.fhir.dstu3.model.*;
+import org.hl7.fhir.dstu3.model.Bundle.BundleEntryComponent;
+import org.hl7.fhir.dstu3.model.Bundle.BundleType;
+import org.hl7.fhir.dstu3.model.CapabilityStatement.UnknownContentCode;
+import org.hl7.fhir.dstu3.model.Condition.ConditionVerificationStatus;
+import org.hl7.fhir.dstu3.model.Enumeration;
+import org.hl7.fhir.dstu3.model.Enumerations.AdministrativeGender;
+import org.hl7.fhir.dstu3.model.Identifier.IdentifierUse;
+import org.hl7.fhir.dstu3.model.Observation.ObservationStatus;
+import org.hl7.fhir.instance.model.api.IIdType;
+import org.hl7.fhir.utilities.xhtml.XhtmlNode;
+import org.junit.*;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
+
+import java.io.IOException;
+import java.io.StringReader;
+import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.util.*;
+
+import static org.apache.commons.lang3.StringUtils.countMatches;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.*;
+import static org.junit.Assert.*;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Matchers.isNull;
+import static org.mockito.Mockito.*;
 
 public class JsonParserDstu3Test {
 	private static FhirContext ourCtx = FhirContext.forDstu3();
@@ -78,6 +58,41 @@ public class JsonParserDstu3Test {
 	public void after() {
 		ourCtx.setNarrativeGenerator(null);
 	}
+	
+
+	/**
+	 * See #563
+	 */
+	@Test
+	public void testBadMessageForUnknownElement() throws IOException {
+		String input = IOUtils.toString(JsonParserDstu3Test.class.getResourceAsStream("/bad_parse_bundle_1.json"), StandardCharsets.UTF_8);
+
+		IParser p = ourCtx.newJsonParser();
+		p.setParserErrorHandler(new StrictErrorHandler());
+		try {
+			p.parseResource(input);
+			fail();
+		} catch (DataFormatException e) {
+			assertEquals("Found incorrect type for element subject - Expected OBJECT and found SCALAR (STRING)", e.getMessage());
+		}
+	}
+
+	/**
+	 * See #563
+	 */
+	@Test
+	public void testBadMessageForUnknownElement2() throws IOException {
+		String input = IOUtils.toString(JsonParserDstu3Test.class.getResourceAsStream("/bad_parse_bundle_2.json"), StandardCharsets.UTF_8);
+
+		IParser p = ourCtx.newJsonParser();
+		p.setParserErrorHandler(new StrictErrorHandler());
+		try {
+			p.parseResource(input);
+			fail();
+		} catch (DataFormatException e) {
+			assertEquals("Found incorrect type for element context - Expected OBJECT and found SCALAR (STRING)", e.getMessage());
+		}
+	}
 
 	/**
 	 * See #544
@@ -85,102 +100,94 @@ public class JsonParserDstu3Test {
 	@Test
 	public void testBundleStitchReferencesByUuid() throws Exception {
 		Bundle bundle = new Bundle();
-		
+
 		DocumentManifest dm = new DocumentManifest();
 		dm.getSubject().setReference("urn:uuid:96e85cca-9797-45d6-834a-c4eb27f331d3");
 		bundle.addEntry().setResource(dm);
-		
+
 		Patient patient = new Patient();
 		patient.addName().setFamily("FAMILY");
 		bundle.addEntry().setResource(patient).setFullUrl("urn:uuid:96e85cca-9797-45d6-834a-c4eb27f331d3");
-		
+
 		String encoded = ourCtx.newJsonParser().setPrettyPrint(true).encodeResourceToString(bundle);
 		ourLog.info(encoded);
-		
+
 		bundle = ourCtx.newJsonParser().parseResource(Bundle.class, encoded);
 		dm = (DocumentManifest) bundle.getEntry().get(0).getResource();
-		
+
 		assertEquals("urn:uuid:96e85cca-9797-45d6-834a-c4eb27f331d3", dm.getSubject().getReference());
-		
+
 		Patient subject = (Patient) dm.getSubject().getResource();
 		assertNotNull(subject);
 		assertEquals("FAMILY", subject.getNameFirstRep().getFamily());
 	}
 
-	
+	/**
+	 * Test for the url generated based on the server config
+	 */
 	@Test
-	public void testIncorrectJsonTypesIdAndArray() {
-		
-		// ID should be a String and communication should be an Array
-		String input = "{\"resourceType\": \"Patient\",\n" +
-				"  \"id\": 123,\n" +
-				"  \"communication\": {\n" +
-				"    \"language\": {\n" +
-				"      \"text\": \"Hindi\"\n" +
-				"    },\n" +
-				"    \"preferred\": true\n" +
-				"  }\n" +
-				"}";
+	public void testCustomUrlExtension() {
+		final String expected = "{\"resourceType\":\"Patient\",\"extension\":[{\"url\":\"http://www.example.com/petname\",\"valueString\":\"myName\"}]}";
 
-		IParser p = ourCtx.newJsonParser();
-		
-		IParserErrorHandler errorHandler = mock(IParserErrorHandler.class);
-		p.setParserErrorHandler(errorHandler);
-		Patient patient = (Patient) p.parseResource(input);
-		
-		ArgumentCaptor<String> elementName = ArgumentCaptor.forClass(String.class);
-		ArgumentCaptor<ValueType> found = ArgumentCaptor.forClass(ValueType.class);
-		ArgumentCaptor<ValueType> expected = ArgumentCaptor.forClass(ValueType.class);
-		ArgumentCaptor<ScalarType> expectedScalarType = ArgumentCaptor.forClass(ScalarType.class);
-		ArgumentCaptor<ScalarType> foundScalarType = ArgumentCaptor.forClass(ScalarType.class);
-		verify(errorHandler, times(2)).incorrectJsonType(any(IParseLocation.class), elementName.capture(), expected.capture(), expectedScalarType.capture(), found.capture(), foundScalarType.capture());
-		
-		assertEquals(ValueType.SCALAR, found.getAllValues().get(0));
-		assertEquals(ValueType.SCALAR, expected.getAllValues().get(0));
-		assertEquals(ScalarType.NUMBER, foundScalarType.getAllValues().get(0));
-		assertEquals(ScalarType.STRING, expectedScalarType.getAllValues().get(0));
-	
-		assertEquals(ValueType.OBJECT, found.getAllValues().get(1));
-		assertEquals(ValueType.ARRAY, expected.getAllValues().get(1));
-		assertEquals(null, foundScalarType.getAllValues().get(1));
-		assertEquals(null, expectedScalarType.getAllValues().get(1));
-		
-		assertEquals("123", patient.getIdElement().getIdPart());
-		assertEquals("Hindi", patient.getCommunicationFirstRep().getLanguage().getText());
-	}
-	
-	@Test
-	public void testIncorrectJsonTypesNone() {
-		
-		// ID should be a String and communication should be an Array
-		String input = "{\"resourceType\": \"Patient\",\n" +
-				"  \"id\": \"123\",\n" +
-				"  \"communication\": [{\n" +
-				"    \"language\": {\n" +
-				"      \"text\": \"Hindi\"\n" +
-				"    },\n" +
-				"    \"preferred\": true\n" +
-				"  }]\n" +
-				"}";
+		final MyPatientWithCustomUrlExtension patient = new MyPatientWithCustomUrlExtension();
+		patient.setPetName(new StringType("myName"));
 
-		IParser p = ourCtx.newJsonParser();
-		
-		IParserErrorHandler errorHandler = mock(IParserErrorHandler.class);
-		p.setParserErrorHandler(errorHandler);
-		Patient patient = (Patient) p.parseResource(input);
-		
-		ArgumentCaptor<String> elementName = ArgumentCaptor.forClass(String.class);
-		ArgumentCaptor<ValueType> found = ArgumentCaptor.forClass(ValueType.class);
-		ArgumentCaptor<ValueType> expected = ArgumentCaptor.forClass(ValueType.class);
-		ArgumentCaptor<ScalarType> expectedScalarType = ArgumentCaptor.forClass(ScalarType.class);
-		ArgumentCaptor<ScalarType> foundScalarType = ArgumentCaptor.forClass(ScalarType.class);
-		verify(errorHandler, times(0)).incorrectJsonType(any(IParseLocation.class), elementName.capture(), expected.capture(), expectedScalarType.capture(), found.capture(), foundScalarType.capture());
-		
-		assertEquals("123", patient.getIdElement().getIdPart());
-		assertEquals("Hindi", patient.getCommunicationFirstRep().getLanguage().getText());
+		final IParser jsonParser = ourCtx.newJsonParser();
+		jsonParser.setServerBaseUrl("http://www.example.com");
+
+		final String parsedPatient = jsonParser.encodeResourceToString(patient);
+		System.out.println(parsedPatient);
+		assertEquals(expected, parsedPatient);
+
+		// Parse with string
+		MyPatientWithCustomUrlExtension newPatient = jsonParser.parseResource(MyPatientWithCustomUrlExtension.class, parsedPatient);
+		assertEquals("myName", newPatient.getPetName().getValue());
+
+		// Parse with stream
+		newPatient = jsonParser.parseResource(MyPatientWithCustomUrlExtension.class, new StringReader(parsedPatient));
+		assertEquals("myName", newPatient.getPetName().getValue());
+
+		// Check no NPE if base server not configure
+		newPatient = ourCtx.newJsonParser().parseResource(MyPatientWithCustomUrlExtension.class, new StringReader(parsedPatient));
+		assertNull("myName", newPatient.getPetName().getValue());
+		assertEquals("myName", ((StringType) newPatient.getExtensionsByUrl("http://www.example.com/petname").get(0).getValue()).getValue());
 	}
 
-	
+	@Test
+	public void testCustomUrlExtensioninBundle() {
+		final String expected = "{\"resourceType\":\"Bundle\",\"entry\":[{\"resource\":{\"resourceType\":\"Patient\",\"extension\":[{\"url\":\"http://www.example.com/petname\",\"valueString\":\"myName\"}]}}]}";
+
+		final MyPatientWithCustomUrlExtension patient = new MyPatientWithCustomUrlExtension();
+		patient.setPetName(new StringType("myName"));
+
+		final Bundle bundle = new Bundle();
+		final BundleEntryComponent entry = new BundleEntryComponent();
+		entry.setResource(patient);
+		bundle.addEntry(entry);
+
+		final IParser jsonParser = ourCtx.newJsonParser();
+		jsonParser.setServerBaseUrl("http://www.example.com");
+
+		final String parsedBundle = jsonParser.encodeResourceToString(bundle);
+		System.out.println(parsedBundle);
+		assertEquals(expected, parsedBundle);
+
+		// Parse with string
+		Bundle newBundle = jsonParser.parseResource(Bundle.class, parsedBundle);
+		assertNotNull(newBundle);
+		assertEquals(1, newBundle.getEntry().size());
+		Patient newPatient = (Patient) newBundle.getEntry().get(0).getResource();
+		assertEquals("myName", ((StringType) newPatient.getExtensionsByUrl("http://www.example.com/petname").get(0).getValue()).getValue());
+
+		// Parse with stream
+		newBundle = jsonParser.parseResource(Bundle.class, new StringReader(parsedBundle));
+		assertNotNull(newBundle);
+		assertEquals(1, newBundle.getEntry().size());
+		newPatient = (Patient) newBundle.getEntry().get(0).getResource();
+		assertEquals("myName", ((StringType) newPatient.getExtensionsByUrl("http://www.example.com/petname").get(0).getValue()).getValue());
+
+	}
+
 	/**
 	 * See #276
 	 */
@@ -205,81 +212,6 @@ public class JsonParserDstu3Test {
 		ourLog.info(encoded);
 
 		assertEquals(3, countMatches(encoded, "resourceType"));
-	}
-
-	/**
-	 * #480
-	 */
-	@Test
-	public void testEncodeEmptyValue() {
-		QuestionnaireResponse qr = new QuestionnaireResponse();
-		qr.setId("123");
-		qr.getAuthoredElement().setValueAsString("");
-		qr.getItemFirstRep().setLinkIdElement(new StringType());
-		qr.getItemFirstRep().addItem().setLinkIdElement(new StringType(""));
-		qr.getItemFirstRep().addItem().setLinkIdElement(new StringType("LINKID"));
-
-		String encoded = ourCtx.newJsonParser().encodeResourceToString(qr);
-		ourLog.info(encoded);
-
-		assertThat(encoded, stringContainsInOrder("123"));
-		assertThat(encoded, not(stringContainsInOrder("\"\"")));
-		assertThat(encoded, not(stringContainsInOrder("null")));
-	}
-
-	/**
-	 * #480
-	 */
-	@Test
-	public void testParseEmptyValue() {
-		String input = "{\"resourceType\":\"QuestionnaireResponse\",\"id\":\"123\",\"authored\":\"\",\"group\":{\"linkId\":\"\"}}";
-		IParser parser = ourCtx.newJsonParser();
-		
-		parser.setParserErrorHandler(new LenientErrorHandler().setErrorOnInvalidValue(false));
-		QuestionnaireResponse qr = parser.parseResource(QuestionnaireResponse.class, input);
-	
-		assertEquals("QuestionnaireResponse/123", qr.getIdElement().getValue());
-		assertEquals(null, qr.getAuthored());
-		assertEquals(null, qr.getAuthoredElement().getValue());
-		assertEquals(null, qr.getAuthoredElement().getValueAsString());
-		assertEquals(null, qr.getItemFirstRep().getLinkId());
-		assertEquals(null, qr.getItemFirstRep().getLinkIdElement().getValue());
-	}
-
-	/**
-	 * See #477
-	 */
-	@Test
-	public void testUnexpectedElementsWithUnderscoreAtStartOfName() throws Exception {
-		String input = IOUtils.toString(JsonParserDstu3Test.class.getResourceAsStream("/bug477.json"), StandardCharsets.UTF_8);
-
-		IParserErrorHandler errorHandler = mock(IParserErrorHandler.class);
-
-		// Do it once without the custom error handler just for the logging
-		IParser p = ourCtx.newJsonParser();
-		p.parseResource(Patient.class, input);
-
-		p = ourCtx.newJsonParser();
-		p.setParserErrorHandler(errorHandler);
-
-		Patient parsed = p.parseResource(Patient.class, input);
-		assertEquals("1", parsed.getIdElement().getIdPart());
-
-		ArgumentCaptor<String> elementName = ArgumentCaptor.forClass(String.class);
-		ArgumentCaptor<ValueType> expected = ArgumentCaptor.forClass(ValueType.class);
-		ArgumentCaptor<ValueType> actual = ArgumentCaptor.forClass(ValueType.class);
-		ArgumentCaptor<ScalarType> expectedScalar = ArgumentCaptor.forClass(ScalarType.class);
-		ArgumentCaptor<ScalarType> actualScalar = ArgumentCaptor.forClass(ScalarType.class);
-		verify(errorHandler, atLeastOnce()).incorrectJsonType(Mockito.any(IParseLocation.class), elementName.capture(), expected.capture(), expectedScalar.capture(), actual.capture(), actualScalar.capture());
-		verify(errorHandler, atLeastOnce()).incorrectJsonType(Mockito.any(IParseLocation.class), Mockito.eq("_id"), Mockito.eq(ValueType.OBJECT), expectedScalar.capture(), Mockito.eq(ValueType.SCALAR), actualScalar.capture());
-		verify(errorHandler, atLeastOnce()).incorrectJsonType(Mockito.any(IParseLocation.class), Mockito.eq("__v"), Mockito.eq(ValueType.OBJECT), expectedScalar.capture(), Mockito.eq(ValueType.SCALAR), actualScalar.capture());
-		verify(errorHandler, atLeastOnce()).incorrectJsonType(Mockito.any(IParseLocation.class), Mockito.eq("_status"), Mockito.eq(ValueType.OBJECT), expectedScalar.capture(), Mockito.eq(ValueType.SCALAR), actualScalar.capture());
-
-		assertEquals("_id", elementName.getAllValues().get(0));
-		assertEquals(ValueType.OBJECT, expected.getAllValues().get(0));
-		assertEquals(ValueType.SCALAR, actual.getAllValues().get(0));
-		assertEquals(null, expectedScalar.getAllValues().get(0));
-		assertEquals(null, actualScalar.getAllValues().get(0));
 	}
 
 	@Test
@@ -662,6 +594,26 @@ public class JsonParserDstu3Test {
 		assertThat(encoded, not(containsString("Label")));
 	}
 
+	/**
+	 * #480
+	 */
+	@Test
+	public void testEncodeEmptyValue() {
+		QuestionnaireResponse qr = new QuestionnaireResponse();
+		qr.setId("123");
+		qr.getAuthoredElement().setValueAsString("");
+		qr.getItemFirstRep().setLinkIdElement(new StringType());
+		qr.getItemFirstRep().addItem().setLinkIdElement(new StringType(""));
+		qr.getItemFirstRep().addItem().setLinkIdElement(new StringType("LINKID"));
+
+		String encoded = ourCtx.newJsonParser().encodeResourceToString(qr);
+		ourLog.info(encoded);
+
+		assertThat(encoded, stringContainsInOrder("123"));
+		assertThat(encoded, not(stringContainsInOrder("\"\"")));
+		assertThat(encoded, not(stringContainsInOrder("null")));
+	}
+
 	@Test
 	public void testEncodeExtendedInfrastructureComponent() {
 		IParser parser = ourCtx.newJsonParser();
@@ -690,7 +642,7 @@ public class JsonParserDstu3Test {
 	@Test
 	public void testEncodeExtensionInPrimitiveElement() {
 
-		Conformance c = new Conformance();
+		CapabilityStatement c = new CapabilityStatement();
 		c.getAcceptUnknownElement().addExtension().setUrl("http://foo").setValue(new StringType("AAA"));
 
 		String encoded = ourCtx.newJsonParser().setPrettyPrint(true).encodeResourceToString(c);
@@ -698,12 +650,12 @@ public class JsonParserDstu3Test {
 
 		encoded = ourCtx.newJsonParser().setPrettyPrint(false).encodeResourceToString(c);
 		ourLog.info(encoded);
-		assertEquals(encoded, "{\"resourceType\":\"Conformance\",\"_acceptUnknown\":{\"extension\":[{\"url\":\"http://foo\",\"valueString\":\"AAA\"}]}}");
+		assertEquals(encoded, "{\"resourceType\":\"CapabilityStatement\",\"_acceptUnknown\":{\"extension\":[{\"url\":\"http://foo\",\"valueString\":\"AAA\"}]}}");
 
 		// Now with a value
 		ourLog.info("---------------");
 
-		c = new Conformance();
+		c = new CapabilityStatement();
 		c.getAcceptUnknownElement().setValue(UnknownContentCode.ELEMENTS);
 		c.getAcceptUnknownElement().addExtension().setUrl("http://foo").setValue(new StringType("AAA"));
 
@@ -712,8 +664,27 @@ public class JsonParserDstu3Test {
 
 		encoded = ourCtx.newJsonParser().setPrettyPrint(false).encodeResourceToString(c);
 		ourLog.info(encoded);
-		assertEquals(encoded, "{\"resourceType\":\"Conformance\",\"acceptUnknown\":\"elements\",\"_acceptUnknown\":{\"extension\":[{\"url\":\"http://foo\",\"valueString\":\"AAA\"}]}}");
+		assertEquals(encoded, "{\"resourceType\":\"CapabilityStatement\",\"acceptUnknown\":\"elements\",\"_acceptUnknown\":{\"extension\":[{\"url\":\"http://foo\",\"valueString\":\"AAA\"}]}}");
 
+	}
+
+	@Test
+	public void testEncodeExtensionOnRoot() {
+		Patient p = new Patient();
+		p.setId("Patient/B");
+		p
+				.addExtension()
+				.setUrl("http://foo")
+				.setValue(new Reference("Practitioner/A"));
+
+		IParser parser = ourCtx.newJsonParser().setPrettyPrint(true);
+		parser.setDontEncodeElements(new HashSet<String>(Arrays.asList("*.id", "*.meta")));
+
+		String encoded = parser.encodeResourceToString(p);
+		ourLog.info(encoded);
+
+		assertThat(encoded, containsString("http://foo"));
+		assertThat(encoded, containsString("Practitioner/A"));
 	}
 
 	@Test
@@ -1012,7 +983,7 @@ public class JsonParserDstu3Test {
 		ourLog.info(encoded);
 
 		assertThat(encoded, containsString("Patient"));
-		assertThat(encoded, stringContainsInOrder(Constants.TAG_SUBSETTED_SYSTEM, Constants.TAG_SUBSETTED_CODE));
+		assertThat(encoded, stringContainsInOrder(ca.uhn.fhir.rest.api.Constants.TAG_SUBSETTED_SYSTEM, ca.uhn.fhir.rest.api.Constants.TAG_SUBSETTED_CODE));
 		assertThat(encoded, not(containsString("text")));
 		assertThat(encoded, not(containsString("THE DIV")));
 		assertThat(encoded, containsString("family"));
@@ -1046,7 +1017,7 @@ public class JsonParserDstu3Test {
 		ourLog.info(encoded);
 
 		assertThat(encoded, containsString("Patient"));
-		assertThat(encoded, stringContainsInOrder("\"tag\"", "\"system\": \"" + Constants.TAG_SUBSETTED_SYSTEM + "\",", "\"code\": \"" + Constants.TAG_SUBSETTED_CODE + "\""));
+		assertThat(encoded, stringContainsInOrder("\"tag\"", "\"system\": \"" + ca.uhn.fhir.rest.api.Constants.TAG_SUBSETTED_SYSTEM + "\",", "\"code\": \"" + ca.uhn.fhir.rest.api.Constants.TAG_SUBSETTED_CODE + "\""));
 		assertThat(encoded, not(containsString("THE DIV")));
 		assertThat(encoded, containsString("family"));
 		assertThat(encoded, not(containsString("maritalStatus")));
@@ -1066,8 +1037,8 @@ public class JsonParserDstu3Test {
 		ourLog.info(encoded);
 
 		assertThat(encoded, containsString("Patient"));
-		assertThat(encoded, stringContainsInOrder("\"tag\"", "\"system\": \"foo\",", "\"code\": \"bar\"", "\"system\": \"" + Constants.TAG_SUBSETTED_SYSTEM + "\"",
-				"\"code\": \"" + Constants.TAG_SUBSETTED_CODE + "\""));
+		assertThat(encoded, stringContainsInOrder("\"tag\"", "\"system\": \"foo\",", "\"code\": \"bar\"", "\"system\": \"" + ca.uhn.fhir.rest.api.Constants.TAG_SUBSETTED_SYSTEM + "\"",
+				"\"code\": \"" + ca.uhn.fhir.rest.api.Constants.TAG_SUBSETTED_CODE + "\""));
 		assertThat(encoded, not(containsString("THE DIV")));
 		assertThat(encoded, containsString("family"));
 		assertThat(encoded, not(containsString("maritalStatus")));
@@ -1310,6 +1281,114 @@ public class JsonParserDstu3Test {
 	}
 
 	/**
+	 * See #658
+	 */
+	@Test
+	public void testExtraElement() throws Exception {
+		IParser p = ourCtx.newJsonParser();
+		p.setParserErrorHandler(new StrictErrorHandler());
+		try {
+			p.parseResource(IOUtils.toString(JsonParserDstu3Test.class.getResourceAsStream("/Patient.json.txt"), Charsets.UTF_8));
+			fail();
+		} catch (DataFormatException e) {
+			assertEquals("Found incorrect type for element assigner - Expected OBJECT and found SCALAR (STRING)", e.getMessage());
+		}
+
+	}
+
+	@Test
+	public void testIncorrectJsonTypesIdAndArray() {
+
+		// ID should be a String and communication should be an Array
+		String input = "{\"resourceType\": \"Patient\",\n" +
+				"  \"id\": 123,\n" +
+				"  \"communication\": {\n" +
+				"    \"language\": {\n" +
+				"      \"text\": \"Hindi\"\n" +
+				"    },\n" +
+				"    \"preferred\": true\n" +
+				"  }\n" +
+				"}";
+
+		IParser p = ourCtx.newJsonParser();
+
+		IParserErrorHandler errorHandler = mock(IParserErrorHandler.class);
+		p.setParserErrorHandler(errorHandler);
+		Patient patient = (Patient) p.parseResource(input);
+
+		ArgumentCaptor<String> elementName = ArgumentCaptor.forClass(String.class);
+		ArgumentCaptor<ValueType> found = ArgumentCaptor.forClass(ValueType.class);
+		ArgumentCaptor<ValueType> expected = ArgumentCaptor.forClass(ValueType.class);
+		ArgumentCaptor<ScalarType> expectedScalarType = ArgumentCaptor.forClass(ScalarType.class);
+		ArgumentCaptor<ScalarType> foundScalarType = ArgumentCaptor.forClass(ScalarType.class);
+		verify(errorHandler, times(2)).incorrectJsonType(any(IParseLocation.class), elementName.capture(), expected.capture(), expectedScalarType.capture(), found.capture(), foundScalarType.capture());
+
+		assertEquals(ValueType.SCALAR, found.getAllValues().get(0));
+		assertEquals(ValueType.SCALAR, expected.getAllValues().get(0));
+		assertEquals(ScalarType.NUMBER, foundScalarType.getAllValues().get(0));
+		assertEquals(ScalarType.STRING, expectedScalarType.getAllValues().get(0));
+
+		assertEquals(ValueType.OBJECT, found.getAllValues().get(1));
+		assertEquals(ValueType.ARRAY, expected.getAllValues().get(1));
+		assertEquals(null, foundScalarType.getAllValues().get(1));
+		assertEquals(null, expectedScalarType.getAllValues().get(1));
+
+		assertEquals("123", patient.getIdElement().getIdPart());
+		assertEquals("Hindi", patient.getCommunicationFirstRep().getLanguage().getText());
+	}
+
+	@Test
+	public void testIncorrectJsonTypesNone() {
+
+		// ID should be a String and communication should be an Array
+		String input = "{\"resourceType\": \"Patient\",\n" +
+				"  \"id\": \"123\",\n" +
+				"  \"communication\": [{\n" +
+				"    \"language\": {\n" +
+				"      \"text\": \"Hindi\"\n" +
+				"    },\n" +
+				"    \"preferred\": true\n" +
+				"  }]\n" +
+				"}";
+
+		IParser p = ourCtx.newJsonParser();
+
+		IParserErrorHandler errorHandler = mock(IParserErrorHandler.class);
+		p.setParserErrorHandler(errorHandler);
+		Patient patient = (Patient) p.parseResource(input);
+
+		ArgumentCaptor<String> elementName = ArgumentCaptor.forClass(String.class);
+		ArgumentCaptor<ValueType> found = ArgumentCaptor.forClass(ValueType.class);
+		ArgumentCaptor<ValueType> expected = ArgumentCaptor.forClass(ValueType.class);
+		ArgumentCaptor<ScalarType> expectedScalarType = ArgumentCaptor.forClass(ScalarType.class);
+		ArgumentCaptor<ScalarType> foundScalarType = ArgumentCaptor.forClass(ScalarType.class);
+		verify(errorHandler, times(0)).incorrectJsonType(any(IParseLocation.class), elementName.capture(), expected.capture(), expectedScalarType.capture(), found.capture(), foundScalarType.capture());
+
+		assertEquals("123", patient.getIdElement().getIdPart());
+		assertEquals("Hindi", patient.getCommunicationFirstRep().getLanguage().getText());
+	}
+
+	@Test
+	public void testInvalidDateTimeValueInvalid() throws Exception {
+		IParserErrorHandler errorHandler = mock(IParserErrorHandler.class);
+
+		String res = "{ \"resourceType\": \"Observation\", \"valueDateTime\": \"foo\" }";
+		IParser parser = ourCtx.newJsonParser();
+		parser.setParserErrorHandler(errorHandler);
+		Observation parsed = parser.parseResource(Observation.class, res);
+
+		assertEquals(null, parsed.getValueDateTimeType().getValue());
+		assertEquals("foo", parsed.getValueDateTimeType().getValueAsString());
+
+		ArgumentCaptor<String> msgCaptor = ArgumentCaptor.forClass(String.class);
+		verify(errorHandler, times(1)).invalidValue(isNull(IParseLocation.class), eq("foo"), msgCaptor.capture());
+		assertEquals("Invalid date/time format: \"foo\"", msgCaptor.getValue());
+
+		String encoded = ourCtx.newJsonParser().encodeResourceToString(parsed);
+		assertEquals("{\"resourceType\":\"Observation\",\"valueDateTime\":\"foo\"}", encoded);
+	}
+
+	/**
 	 * #516
 	 */
 	@Test(expected = DataFormatException.class)
@@ -1324,19 +1403,19 @@ public class JsonParserDstu3Test {
 	@Test
 	public void testInvalidEnumValueBlank() {
 		IParserErrorHandler errorHandler = mock(IParserErrorHandler.class);
-		
+
 		String res = "{ \"resourceType\": \"Patient\", \"gender\": \"\" }";
 		IParser parser = ourCtx.newJsonParser();
 		parser.setParserErrorHandler(errorHandler);
 		Patient parsed = parser.parseResource(Patient.class, res);
-		
+
 		assertEquals(null, parsed.getGenderElement().getValue());
 		assertEquals(null, parsed.getGenderElement().getValueAsString());
-		
+
 		ArgumentCaptor<String> msgCaptor = ArgumentCaptor.forClass(String.class);
 		verify(errorHandler, times(1)).invalidValue(isNull(IParseLocation.class), eq(""), msgCaptor.capture());
 		assertEquals("Attribute values must not be empty (\"\")", msgCaptor.getValue());
-		
+
 		String encoded = ourCtx.newJsonParser().encodeResourceToString(parsed);
 		assertEquals("{\"resourceType\":\"Patient\"}", encoded);
 	}
@@ -1344,41 +1423,21 @@ public class JsonParserDstu3Test {
 	@Test
 	public void testInvalidEnumValueInvalid() {
 		IParserErrorHandler errorHandler = mock(IParserErrorHandler.class);
-		
+
 		String res = "{ \"resourceType\": \"Patient\", \"gender\": \"foo\" }";
 		IParser parser = ourCtx.newJsonParser();
 		parser.setParserErrorHandler(errorHandler);
 		Patient parsed = parser.parseResource(Patient.class, res);
-		
+
 		assertEquals(null, parsed.getGenderElement().getValue());
 		assertEquals("foo", parsed.getGenderElement().getValueAsString());
-		
+
 		ArgumentCaptor<String> msgCaptor = ArgumentCaptor.forClass(String.class);
 		verify(errorHandler, times(1)).invalidValue(isNull(IParseLocation.class), eq("foo"), msgCaptor.capture());
 		assertEquals("Unknown AdministrativeGender code 'foo'", msgCaptor.getValue());
-		
-		String encoded = ourCtx.newJsonParser().encodeResourceToString(parsed);
-		assertEquals("{\"resourceType\":\"Patient\",\"gender\":\"foo\"}", encoded);		
-	}
 
-	@Test
-	public void testInvalidDateTimeValueInvalid() throws Exception {
-		IParserErrorHandler errorHandler = mock(IParserErrorHandler.class);
-		
-		String res = "{ \"resourceType\": \"Observation\", \"valueDateTime\": \"foo\" }";
-		IParser parser = ourCtx.newJsonParser();
-		parser.setParserErrorHandler(errorHandler);
-		Observation parsed = parser.parseResource(Observation.class, res);
-		
-		assertEquals(null, parsed.getValueDateTimeType().getValue());
-		assertEquals("foo", parsed.getValueDateTimeType().getValueAsString());
-		
-		ArgumentCaptor<String> msgCaptor = ArgumentCaptor.forClass(String.class);
-		verify(errorHandler, times(1)).invalidValue(isNull(IParseLocation.class), eq("foo"), msgCaptor.capture());
-		assertEquals("Invalid date/time format: \"foo\"", msgCaptor.getValue());
-		
 		String encoded = ourCtx.newJsonParser().encodeResourceToString(parsed);
-		assertEquals("{\"resourceType\":\"Observation\",\"valueDateTime\":\"foo\"}", encoded);		
+		assertEquals("{\"resourceType\":\"Patient\",\"gender\":\"foo\"}", encoded);
 	}
 
 	/**
@@ -1456,6 +1515,47 @@ public class JsonParserDstu3Test {
 	}
 
 	@Test
+	public void testOverrideResourceIdWithBundleEntryFullUrlDisabled_ConfiguredOnFhirContext() {
+		try {
+			String tmp = "{\"resourceType\":\"Bundle\",\"entry\":[{\"fullUrl\":\"http://lalaland.org/patient/pat1\",\"resource\":{\"resourceType\":\"Patient\",\"id\":\"patxuzos\"}}]}";
+			ourCtx.getParserOptions().setOverrideResourceIdWithBundleEntryFullUrl(false);
+			Bundle bundle = (Bundle) ourCtx.newJsonParser().parseResource(tmp);
+			assertEquals(1, bundle.getEntry().size());
+			{
+				Patient o1 = (Patient) bundle.getEntry().get(0).getResource();
+				IIdType o1Id = o1.getIdElement();
+				assertFalse(o1Id.hasBaseUrl());
+				assertEquals("Patient", o1Id.getResourceType());
+				assertEquals("patxuzos", o1Id.getIdPart());
+				assertFalse(o1Id.hasVersionIdPart());
+			}
+		} finally {
+			// ensure we cleanup ourCtx so other tests continue to work
+			ourCtx = FhirContext.forDstu3();
+		}
+	}
+
+	@Test
+	public void testOverrideResourceIdWithBundleEntryFullUrlDisabled_ConfiguredOnParser() {
+		try {
+			String tmp = "{\"resourceType\":\"Bundle\",\"entry\":[{\"fullUrl\":\"http://lalaland.org/patient/pat1\",\"resource\":{\"resourceType\":\"Patient\",\"id\":\"patxuzos\"}}]}";
+			Bundle bundle = (Bundle) ourCtx.newJsonParser().setOverrideResourceIdWithBundleEntryFullUrl(false).parseResource(tmp);
+			assertEquals(1, bundle.getEntry().size());
+			{
+				Patient o1 = (Patient) bundle.getEntry().get(0).getResource();
+				IIdType o1Id = o1.getIdElement();
+				assertFalse(o1Id.hasBaseUrl());
+				assertEquals("Patient", o1Id.getResourceType());
+				assertEquals("patxuzos", o1Id.getIdPart());
+				assertFalse(o1Id.hasVersionIdPart());
+			}
+		} finally {
+			// ensure we cleanup ourCtx so other tests continue to work
+			ourCtx = FhirContext.forDstu3();
+		}
+	}
+
+	@Test
 	@Ignore
 	public void testParseAndEncodeBundle() throws Exception {
 		String content = IOUtils.toString(JsonParserDstu3Test.class.getResourceAsStream("/bundle-example.json"), StandardCharsets.UTF_8);
@@ -1475,7 +1575,7 @@ public class JsonParserDstu3Test {
 
 		assertEquals("http://example.com/base/MedicationRequest/3123/_history/1", parsed.getEntry().get(0).getLink("alternate").getUrl());
 		MedicationRequest p = (MedicationRequest) parsed.getEntry().get(0).getResource();
-		assertEquals("Patient/347", p.getPatient().getReference());
+		assertEquals("Patient/347", p.getSubject().getReference());
 		assertEquals("2014-08-16T05:31:17Z", p.getMeta().getLastUpdatedElement().getValueAsString());
 		assertEquals("http://example.com/base/MedicationRequest/3123/_history/1", p.getId());
 
@@ -1549,7 +1649,7 @@ public class JsonParserDstu3Test {
 		assertEquals("http://foo?search", parsed.getEntry().get(0).getRequest().getUrlElement().getValueAsString());
 
 		MedicationRequest p = (MedicationRequest) parsed.getEntry().get(0).getResource();
-		assertEquals("Patient/347", p.getPatient().getReference());
+		assertEquals("Patient/347", p.getSubject().getReference());
 		assertEquals("2014-08-16T05:31:17Z", p.getMeta().getLastUpdatedElement().getValueAsString());
 		assertEquals("http://example.com/base/MedicationRequest/3123/_history/1", p.getId());
 		// assertEquals("3123", p.getId());
@@ -1792,6 +1892,25 @@ public class JsonParserDstu3Test {
 		assertNotNull(o.getSubject().getResource());
 		p = (Patient) o.getSubject().getResource();
 		assertEquals("patient family", p.getName().get(0).getFamilyElement().getValue());
+	}
+
+	/**
+	 * #480
+	 */
+	@Test
+	public void testParseEmptyValue() {
+		String input = "{\"resourceType\":\"QuestionnaireResponse\",\"id\":\"123\",\"authored\":\"\",\"group\":{\"linkId\":\"\"}}";
+		IParser parser = ourCtx.newJsonParser();
+
+		parser.setParserErrorHandler(new LenientErrorHandler().setErrorOnInvalidValue(false));
+		QuestionnaireResponse qr = parser.parseResource(QuestionnaireResponse.class, input);
+
+		assertEquals("QuestionnaireResponse/123", qr.getIdElement().getValue());
+		assertEquals(null, qr.getAuthored());
+		assertEquals(null, qr.getAuthoredElement().getValue());
+		assertEquals(null, qr.getAuthoredElement().getValueAsString());
+		assertEquals(null, qr.getItemFirstRep().getLinkId());
+		assertEquals(null, qr.getItemFirstRep().getLinkIdElement().getValue());
 	}
 
 	/**
@@ -2093,7 +2212,7 @@ public class JsonParserDstu3Test {
 	public void testParseWithWrongTypeObjectShouldBeArray() throws Exception {
 		String input = IOUtils.toString(getClass().getResourceAsStream("/invalid_metadata.json"));
 		try {
-			ourCtx.newJsonParser().parseResource(Conformance.class, input);
+			ourCtx.newJsonParser().parseResource(CapabilityStatement.class, input);
 			fail();
 		} catch (DataFormatException e) {
 			assertEquals("Syntax error parsing JSON FHIR structure: Expected ARRAY at element 'modifierExtension', found 'OBJECT'", e.getMessage());
@@ -2146,6 +2265,46 @@ public class JsonParserDstu3Test {
 		Assert.assertThat(message, containsString("contained"));
 	}
 
+	/**
+	 * See #477
+	 */
+	@Test
+	public void testUnexpectedElementsWithUnderscoreAtStartOfName() throws Exception {
+		String input = IOUtils.toString(JsonParserDstu3Test.class.getResourceAsStream("/bug477.json"), StandardCharsets.UTF_8);
+
+		IParserErrorHandler errorHandler = mock(IParserErrorHandler.class);
+
+		// Do it once without the custom error handler just for the logging
+		IParser p = ourCtx.newJsonParser();
+		p.parseResource(Patient.class, input);
+
+		p = ourCtx.newJsonParser();
+		p.setParserErrorHandler(errorHandler);
+
+		Patient parsed = p.parseResource(Patient.class, input);
+		assertEquals("1", parsed.getIdElement().getIdPart());
+
+		ArgumentCaptor<String> elementName = ArgumentCaptor.forClass(String.class);
+		ArgumentCaptor<ValueType> expected = ArgumentCaptor.forClass(ValueType.class);
+		ArgumentCaptor<ValueType> actual = ArgumentCaptor.forClass(ValueType.class);
+		ArgumentCaptor<ScalarType> expectedScalar = ArgumentCaptor.forClass(ScalarType.class);
+		ArgumentCaptor<ScalarType> actualScalar = ArgumentCaptor.forClass(ScalarType.class);
+		verify(errorHandler, atLeastOnce()).incorrectJsonType(Mockito.any(IParseLocation.class), elementName.capture(), expected.capture(), expectedScalar.capture(), actual.capture(),
+				actualScalar.capture());
+		verify(errorHandler, atLeastOnce()).incorrectJsonType(Mockito.any(IParseLocation.class), Mockito.eq("_id"), Mockito.eq(ValueType.OBJECT), expectedScalar.capture(), Mockito.eq(ValueType.SCALAR),
+				actualScalar.capture());
+		verify(errorHandler, atLeastOnce()).incorrectJsonType(Mockito.any(IParseLocation.class), Mockito.eq("__v"), Mockito.eq(ValueType.OBJECT), expectedScalar.capture(), Mockito.eq(ValueType.SCALAR),
+				actualScalar.capture());
+		verify(errorHandler, atLeastOnce()).incorrectJsonType(Mockito.any(IParseLocation.class), Mockito.eq("_status"), Mockito.eq(ValueType.OBJECT), expectedScalar.capture(),
+				Mockito.eq(ValueType.SCALAR), actualScalar.capture());
+
+		assertEquals("_id", elementName.getAllValues().get(0));
+		assertEquals(ValueType.OBJECT, expected.getAllValues().get(0));
+		assertEquals(ValueType.SCALAR, actual.getAllValues().get(0));
+		assertEquals(null, expectedScalar.getAllValues().get(0));
+		assertEquals(null, actualScalar.getAllValues().get(0));
+	}
+
 	@Test
 	public void testValidateCustomStructure() throws Exception {
 
@@ -2167,6 +2326,26 @@ public class JsonParserDstu3Test {
 
 		ourLog.info(ourCtx.newXmlParser().setPrettyPrint(true).encodeResourceToString(result.toOperationOutcome()));
 		assertTrue(result.isSuccessful());
+	}
+
+	@Test
+	public void testBaseUrlFooResourceCorrectlySerializedInExtensionValueReference() {
+		String refVal = "http://my.org/FooBar";
+
+		Patient fhirPat = new Patient();
+		fhirPat.addExtension().setUrl("x1").setValue(new Reference(refVal));
+
+		IParser parser = ourCtx.newJsonParser();
+
+		String output = parser.encodeResourceToString(fhirPat);
+		System.out.println("output: " + output);
+
+		// Deserialize then check that valueReference value is still correct
+		fhirPat = parser.parseResource(Patient.class, output);
+
+		List<Extension> extlst = fhirPat.getExtensionsByUrl("x1");
+		Assert.assertEquals(1, extlst.size());
+		Assert.assertEquals(refVal, ((Reference) extlst.get(0).getValue()).getReference());
 	}
 
 	@AfterClass

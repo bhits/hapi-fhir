@@ -24,21 +24,10 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collection;
 
-import javax.persistence.CascadeType;
-import javax.persistence.Column;
-import javax.persistence.Entity;
-import javax.persistence.FetchType;
-import javax.persistence.GeneratedValue;
-import javax.persistence.GenerationType;
-import javax.persistence.Id;
-import javax.persistence.Index;
-import javax.persistence.OneToMany;
-import javax.persistence.SequenceGenerator;
-import javax.persistence.Table;
-import javax.persistence.UniqueConstraint;
+import javax.persistence.*;
 
 import ca.uhn.fhir.model.primitive.IdDt;
-import ca.uhn.fhir.rest.server.Constants;
+import ca.uhn.fhir.rest.api.Constants;
 
 //@formatter:off
 @Entity
@@ -93,8 +82,13 @@ public class ResourceHistoryTable extends BaseHasResource implements Serializabl
 	}
 
 	@Override
-	public BaseTag addTag(TagDefinition theDef) {
-		ResourceHistoryTag historyTag = new ResourceHistoryTag(this, theDef);
+	public ResourceHistoryTag addTag(TagDefinition theTag) {
+		for (ResourceHistoryTag next : getTags()) {
+			if (next.getTag().equals(theTag)) {
+				return next;
+			}
+		}
+		ResourceHistoryTag historyTag = new ResourceHistoryTag(this, theTag);
 		getTags().add(historyTag);
 		return historyTag;
 	}

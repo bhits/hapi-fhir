@@ -1,5 +1,8 @@
 package ca.uhn.fhir.jpa.dao;
 
+import javax.transaction.Transactional;
+import javax.transaction.Transactional.TxType;
+
 /*
  * #%L
  * HAPI FHIR JPA Server
@@ -28,9 +31,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 
 import ca.uhn.fhir.context.FhirContext;
+import ca.uhn.fhir.rest.api.server.IBundleProvider;
 import ca.uhn.fhir.rest.param.UriParam;
-import ca.uhn.fhir.rest.server.IBundleProvider;
 
+@Transactional(value=TxType.REQUIRED)
 public class JpaValidationSupportDstu2 implements IJpaValidationSupportDstu2 {
 
 	private static final org.slf4j.Logger ourLog = org.slf4j.LoggerFactory.getLogger(JpaValidationSupportDstu2.class);
@@ -52,11 +56,13 @@ public class JpaValidationSupportDstu2 implements IJpaValidationSupportDstu2 {
 	private FhirContext myDstu2Ctx;
 
 	@Override
+	@Transactional(value=TxType.SUPPORTS)
 	public ValueSetExpansionComponent expandValueSet(FhirContext theCtx, ConceptSetComponent theInclude) {
 		return null;
 	}
 
 	@Override
+	@Transactional(value=TxType.SUPPORTS)
 	public ValueSet fetchCodeSystem(FhirContext theCtx, String theSystem) {
 		return null;
 	}
@@ -66,9 +72,11 @@ public class JpaValidationSupportDstu2 implements IJpaValidationSupportDstu2 {
 		String resourceName = myRiCtx.getResourceDefinition(theClass).getName();
 		IBundleProvider search;
 		if ("ValueSet".equals(resourceName)) {
-			search = myValueSetDao.search(ca.uhn.fhir.model.dstu2.resource.ValueSet.SP_URL, new UriParam(theUri));
+			SearchParameterMap params = new SearchParameterMap(ca.uhn.fhir.model.dstu2.resource.ValueSet.SP_URL, new UriParam(theUri));
+			params.setLoadSynchronousUpTo(10);
+			search = myValueSetDao.search(params);
 		} else if ("StructureDefinition".equals(resourceName)) {
-			search = myStructureDefinitionDao.search(ca.uhn.fhir.model.dstu2.resource.StructureDefinition.SP_URL, new UriParam(theUri));
+			search = myStructureDefinitionDao.search(new SearchParameterMap().setLoadSynchronous(true).add(ca.uhn.fhir.model.dstu2.resource.StructureDefinition.SP_URL, new UriParam(theUri)));
 		} else {
 			throw new IllegalArgumentException("Can't fetch resource type: " + resourceName);
 		}
@@ -93,11 +101,13 @@ public class JpaValidationSupportDstu2 implements IJpaValidationSupportDstu2 {
 	}
 
 	@Override
+	@Transactional(value=TxType.SUPPORTS)
 	public boolean isCodeSystemSupported(FhirContext theCtx, String theSystem) {
 		return false;
 	}
 
 	@Override
+	@Transactional(value=TxType.SUPPORTS)
 	public CodeValidationResult validateCode(FhirContext theCtx, String theCodeSystem, String theCode, String theDisplay) {
 		return null;
 	}

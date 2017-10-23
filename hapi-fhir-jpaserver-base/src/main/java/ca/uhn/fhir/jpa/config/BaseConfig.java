@@ -20,13 +20,19 @@ package ca.uhn.fhir.jpa.config;
  * #L%
  */
 
-import javax.annotation.Resource;
-
+import ca.uhn.fhir.jpa.graphql.JpaStorageServices;
+import ca.uhn.fhir.jpa.search.*;
+import ca.uhn.fhir.jpa.sp.ISearchParamPresenceSvc;
+import ca.uhn.fhir.jpa.sp.SearchParamPresenceSvcImpl;
+import ca.uhn.fhir.jpa.subscription.resthook.SubscriptionRestHookInterceptor;
+import ca.uhn.fhir.jpa.subscription.websocket.SubscriptionWebsocketInterceptor;
+import org.hl7.fhir.utilities.graphql.IGraphQLStorageServices;
 import org.springframework.beans.factory.annotation.Autowire;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.context.support.PropertySourcesPlaceholderConfigurer;
 import org.springframework.core.env.Environment;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
@@ -37,21 +43,17 @@ import org.springframework.scheduling.concurrent.ConcurrentTaskScheduler;
 import org.springframework.scheduling.concurrent.ScheduledExecutorFactoryBean;
 import org.springframework.scheduling.config.ScheduledTaskRegistrar;
 
-import ca.uhn.fhir.jpa.search.DatabaseBackedPagingProvider;
-import ca.uhn.fhir.jpa.search.IStaleSearchDeletingSvc;
-import ca.uhn.fhir.jpa.search.StaleSearchDeletingSvcImpl;
+import javax.annotation.Resource;
 
 @Configuration
 @EnableScheduling
 @EnableJpaRepositories(basePackages = "ca.uhn.fhir.jpa.dao.data")
 public class BaseConfig implements SchedulingConfigurer {
 
-
-	@Resource
-	private ApplicationContext myAppCtx;
-
 	@Autowired
 	protected Environment myEnv;
+	@Resource
+	private ApplicationContext myAppCtx;
 
 	@Override
 	public void configureTasks(ScheduledTaskRegistrar theTaskRegistrar) {
@@ -64,9 +66,9 @@ public class BaseConfig implements SchedulingConfigurer {
 		return retVal;
 	}
 
-	@Bean(autowire=Autowire.BY_TYPE)
-	public IStaleSearchDeletingSvc staleSearchDeletingSvc() {
-		return new StaleSearchDeletingSvcImpl();
+	@Bean
+	public IGraphQLStorageServices jpaStorageServices() {
+		return new JpaStorageServices();
 	}
 
 	@Bean()
@@ -75,7 +77,43 @@ public class BaseConfig implements SchedulingConfigurer {
 		b.setPoolSize(5);
 		return b;
 	}
-	
+
+	@Bean(autowire = Autowire.BY_TYPE)
+	public ISearchCoordinatorSvc searchCoordinatorSvc() {
+		return new SearchCoordinatorSvcImpl();
+	}
+
+	@Bean
+	public ISearchParamPresenceSvc searchParamPresenceSvc() {
+		return new SearchParamPresenceSvcImpl();
+	}
+
+	@Bean(autowire = Autowire.BY_TYPE)
+	public IStaleSearchDeletingSvc staleSearchDeletingSvc() {
+		return new StaleSearchDeletingSvcImpl();
+	}
+
+	// @PostConstruct
+	// public void wireResourceDaos() {
+	// Map<String, IDao> daoBeans = myAppCtx.getBeansOfType(IDao.class);
+	// List bean = myAppCtx.getBean("myResourceProvidersDstu2", List.class);
+	// for (IDao next : daoBeans.values()) {
+	// next.setResourceDaos(bean);
+	// }
+	// }
+
+	@Bean
+	@Lazy
+	public SubscriptionRestHookInterceptor subscriptionRestHookInterceptor() {
+		return new SubscriptionRestHookInterceptor();
+	}
+
+	@Bean
+	@Lazy
+	public SubscriptionWebsocketInterceptor subscriptionWebsocketInterceptor() {
+		return new SubscriptionWebsocketInterceptor();
+	}
+
 	@Bean
 	public TaskScheduler taskScheduler() {
 		ConcurrentTaskScheduler retVal = new ConcurrentTaskScheduler();
@@ -86,15 +124,6 @@ public class BaseConfig implements SchedulingConfigurer {
 //		retVal.setPoolSize(5);
 //		return retVal;
 	}
-	
-	// @PostConstruct
-	// public void wireResourceDaos() {
-	// Map<String, IDao> daoBeans = myAppCtx.getBeansOfType(IDao.class);
-	// List bean = myAppCtx.getBean("myResourceProvidersDstu2", List.class);
-	// for (IDao next : daoBeans.values()) {
-	// next.setResourceDaos(bean);
-	// }
-	// }
 
 	/**
 	 * This lets the "@Value" fields reference properties from the properties file
@@ -103,5 +132,6 @@ public class BaseConfig implements SchedulingConfigurer {
 	public static PropertySourcesPlaceholderConfigurer propertySourcesPlaceholderConfigurer() {
 		return new PropertySourcesPlaceholderConfigurer();
 	}
+
 
 }

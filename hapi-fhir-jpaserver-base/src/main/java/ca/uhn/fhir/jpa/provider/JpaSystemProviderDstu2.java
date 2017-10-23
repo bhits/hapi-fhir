@@ -2,8 +2,6 @@ package ca.uhn.fhir.jpa.provider;
 
 import static org.apache.commons.lang3.StringUtils.isBlank;
 
-import java.util.List;
-
 /*
  * #%L
  * HAPI FHIR JPA Server
@@ -23,11 +21,10 @@ import java.util.List;
  * limitations under the License.
  * #L%
  */
-
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.TreeMap;
 
+import ca.uhn.fhir.jpa.provider.dstu3.JpaSystemProviderDstu3;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 
@@ -39,14 +36,9 @@ import ca.uhn.fhir.model.dstu2.composite.MetaDt;
 import ca.uhn.fhir.model.dstu2.resource.Bundle;
 import ca.uhn.fhir.model.dstu2.resource.Parameters;
 import ca.uhn.fhir.model.dstu2.resource.Parameters.Parameter;
-import ca.uhn.fhir.model.primitive.DecimalDt;
-import ca.uhn.fhir.model.primitive.IntegerDt;
-import ca.uhn.fhir.model.primitive.StringDt;
-import ca.uhn.fhir.rest.annotation.Operation;
-import ca.uhn.fhir.rest.annotation.OperationParam;
-import ca.uhn.fhir.rest.annotation.Transaction;
-import ca.uhn.fhir.rest.annotation.TransactionParam;
-import ca.uhn.fhir.rest.method.RequestDetails;
+import ca.uhn.fhir.model.primitive.*;
+import ca.uhn.fhir.rest.annotation.*;
+import ca.uhn.fhir.rest.api.server.RequestDetails;
 import ca.uhn.fhir.rest.server.exceptions.InvalidRequestException;
 import ca.uhn.fhir.rest.server.servlet.ServletRequestDetails;
 
@@ -56,7 +48,7 @@ public class JpaSystemProviderDstu2 extends BaseJpaSystemProviderDstu2Plus<Bundl
 	@Qualifier("mySystemDaoDstu2")
 	private IFhirSystemDao<Bundle, MetaDt> mySystemDao;
 
-	@Autowired
+	@Autowired(required = false)
 	private IFulltextSearchSvc mySearchDao;
 	
 	//@formatter:off
@@ -187,7 +179,8 @@ public class JpaSystemProviderDstu2 extends BaseJpaSystemProviderDstu2Plus<Bundl
 			@OperationParam(name="searchParam", min=1, max=1) String theSearchParam,
 			@OperationParam(name="text", min=1, max=1) String theText
 		) {
-		
+		JpaSystemProviderDstu3.validateFulltextSearchEnabled(mySearchDao);
+
 		if (isBlank(theContext)) {
 			throw new InvalidRequestException("Parameter 'context' must be provided");
 		}
@@ -197,16 +190,14 @@ public class JpaSystemProviderDstu2 extends BaseJpaSystemProviderDstu2Plus<Bundl
 		if (isBlank(theText)) {
 			throw new InvalidRequestException("Parameter 'text' must be provided");
 		}
-		
+
 		List<Suggestion> keywords = mySearchDao.suggestKeywords(theContext, theSearchParam, theText);
 		
 		Parameters retVal = new Parameters();
 		for (Suggestion next : keywords) {
-			//@formatter:off
 			retVal.addParameter()
 					.addPart(new Parameter().setName("keyword").setValue(new StringDt(next.getTerm())))
 					.addPart(new Parameter().setName("score").setValue(new DecimalDt(next.getScore())));
-			//@formatter:on
 		}
 
 		return retVal;

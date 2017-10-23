@@ -2,13 +2,14 @@ package ca.uhn.fhir.jpa.dao.dstu3;
 
 import static org.junit.Assert.assertEquals;
 
-import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import ca.uhn.fhir.jpa.search.JpaRuntimeSearchParam;
 import org.hl7.fhir.dstu3.hapi.validation.DefaultProfileValidationSupport;
-import org.hl7.fhir.dstu3.hapi.validation.IValidationSupport;
+import org.hl7.fhir.dstu3.hapi.ctx.IValidationSupport;
 import org.hl7.fhir.dstu3.model.Observation;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -55,12 +56,27 @@ public class SearchParamExtractorDstu3Test {
 			}
 
 			@Override
+			public List<JpaRuntimeSearchParam> getActiveUniqueSearchParams(String theResourceName) {
+				throw new UnsupportedOperationException();
+			}
+
+			@Override
+			public List<JpaRuntimeSearchParam> getActiveUniqueSearchParams(String theResourceName, Set<String> theParamNames) {
+				throw new UnsupportedOperationException();
+			}
+
+			@Override
 			public void forceRefresh() {
 				// nothing
 			}
 
 			@Override
 			public Map<String, Map<String, RuntimeSearchParam>> getActiveSearchParams() {
+				throw new UnsupportedOperationException();
+			}
+
+			@Override
+			public RuntimeSearchParam getActiveSearchParam(String theResourceName, String theParamName) {
 				throw new UnsupportedOperationException();
 			}
 		};

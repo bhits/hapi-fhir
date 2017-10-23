@@ -3,10 +3,11 @@ package org.hl7.fhir.dstu3.elementmodel;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.util.ArrayList;
+import java.io.UnsupportedEncodingException;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.ArrayList;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -22,10 +23,9 @@ import org.hl7.fhir.dstu3.elementmodel.Element.SpecialElement;
 import org.hl7.fhir.dstu3.formats.FormatUtilities;
 import org.hl7.fhir.dstu3.formats.IParser.OutputStyle;
 import org.hl7.fhir.dstu3.model.DateTimeType;
+import org.hl7.fhir.dstu3.model.ElementDefinition;
 import org.hl7.fhir.dstu3.model.ElementDefinition.PropertyRepresentation;
 import org.hl7.fhir.dstu3.model.Enumeration;
-import org.hl7.fhir.dstu3.model.OperationOutcome.IssueSeverity;
-import org.hl7.fhir.dstu3.model.OperationOutcome.IssueType;
 import org.hl7.fhir.dstu3.model.StructureDefinition;
 import org.hl7.fhir.dstu3.utils.ToolingExtensions;
 import org.hl7.fhir.dstu3.utils.formats.XmlLocationAnnotator;
@@ -34,6 +34,8 @@ import org.hl7.fhir.exceptions.DefinitionException;
 import org.hl7.fhir.exceptions.FHIRException;
 import org.hl7.fhir.exceptions.FHIRFormatError;
 import org.hl7.fhir.utilities.Utilities;
+import org.hl7.fhir.utilities.validation.ValidationMessage.IssueSeverity;
+import org.hl7.fhir.utilities.validation.ValidationMessage.IssueType;
 import org.hl7.fhir.utilities.xhtml.XhtmlComposer;
 import org.hl7.fhir.utilities.xhtml.XhtmlNode;
 import org.hl7.fhir.utilities.xhtml.XhtmlParser;
@@ -44,6 +46,7 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.xml.sax.InputSource;
 import org.xml.sax.XMLReader;
+import org.apache.commons.lang3.StringUtils;
 
 public class XmlParser extends ParserBase {
   private boolean allowXsiLocation;
@@ -241,7 +244,7 @@ public class XmlParser extends ParserBase {
 	    		else
 	    	    context.getChildren().add(new Element(property.getName(), property, property.getType(), av).markLocation(line(node), col(node)));
         } else if (!allowXsiLocation || !attr.getNodeName().endsWith(":schemaLocation") ) {
-          logError(line(node), col(node), path, IssueType.STRUCTURE, "Undefined attribute '@"+attr.getNodeName()+"'", IssueSeverity.ERROR);      		
+          logError(line(node), col(node), path, IssueType.STRUCTURE, "Undefined attribute '@"+attr.getNodeName()+"' on "+node.getNodeName(), IssueSeverity.ERROR);      		
       	}
     	}
     }
@@ -249,7 +252,13 @@ public class XmlParser extends ParserBase {
     Node child = node.getFirstChild();
     while (child != null) {
     	if (child.getNodeType() == Node.ELEMENT_NODE) {
-    		Property property = getElementProp(properties, child.getLocalName());
+        final Property property;
+        if (StringUtils.contains(child.getLocalName(), "extension")) {
+          property = getExtensionProp(properties, child);
+        } else {
+          property = getElementProp(properties, child.getLocalName());
+        }
+
     		if (property != null) {
     			if (!property.isChoice() && "xhtml".equals(property.getType())) {
           	XhtmlNode xhtml = new XhtmlParser().setValidatorMode(true).parseHtmlNode((org.w3c.dom.Element) child);
@@ -292,6 +301,48 @@ public class XmlParser extends ParserBase {
     }
   }
 
+  private Property getExtensionProp(final List<Property> properties, final Node child) {
+    // get the correct property corresponding to the extension
+    Property property = null;
+    final Node extensionNode = child.getAttributes().getNamedItem("url");
+    if (extensionNode != null) {
+      for (final Property prop : properties) {
+        if (prop.getName().contains("extension")) {
+          if (findExtension(prop.getDefinition(), extensionNode.getNodeValue())) {
+            property = prop;
+            break;
+          }
+        }
+      }
+    }
+    if (property == null) {
+      property = getElementProp(properties, child.getLocalName());
+    }
+
+    return isDefaultExtensionElement(property) ? null : property;
+  }
+
+  private boolean isDefaultExtensionElement(final Property property) {
+    if (property == null) {
+      return false;
+    }
+    final ElementDefinition ed = property.getDefinition();
+    return StringUtils.contains(ed.getPath(), "extension") && ed.getType().isEmpty() && !ed.getSlicing().isEmpty();
+  }
+
+  private boolean findExtension(final ElementDefinition definition, final String localName) {
+    boolean result = false;
+    if(StringUtils.isNotBlank(localName)) {
+      for (ElementDefinition.TypeRefComponent type:definition.getType()) {
+        if(localName.equals(type.getProfile())) {
+          result = true;
+          break;
+        }
+      }
+    }
+    return result;
+  }
+    
   private Property getElementProp(List<Property> properties, String nodeName) {
 		List<Property> propsSortedByLongestFirst = new ArrayList<Property>(properties);
 		// sort properties according to their name longest first, so .requestOrganizationReference comes first before .request[x]
@@ -336,14 +387,33 @@ public class XmlParser extends ParserBase {
 
   private void parseResource(String string, org.w3c.dom.Element container, Element parent, Property elementProperty) throws FHIRFormatError, DefinitionException, FHIRException, IOException {
   	org.w3c.dom.Element res = XMLUtil.getFirstChild(container);
-    String name = res.getLocalName();
-    StructureDefinition sd = context.fetchResource(StructureDefinition.class, "http://hl7.org/fhir/StructureDefinition/"+name);
+    final String profile = findProfile(res);
+    final StructureDefinition sd = context.fetchResource(StructureDefinition.class, profile);
     if (sd == null)
       throw new FHIRFormatError("Contained resource does not appear to be a FHIR resource (unknown name '"+res.getLocalName()+"')");
     parent.updateProperty(new Property(context, sd.getSnapshot().getElement().get(0), sd), SpecialElement.fromProperty(parent.getProperty()), elementProperty);
-    parent.setType(name);
+    parent.setType(res.getLocalName());
     parseChildren(res.getLocalName(), res, parent);
 	}
+
+  private String findProfile(final org.w3c.dom.Element res) {
+    String url = null;
+    for (int i = 0; i < res.getChildNodes().getLength(); i++) {
+      final Node child = res.getChildNodes().item(i);
+      if ("meta".equals(child.getLocalName())) {
+        for (int j = 0; j < child.getChildNodes().getLength(); j++) {
+          final Node subChild = child.getChildNodes().item(j);
+          if ("profile".equals(subChild.getLocalName())) {
+            final Node profileNode = subChild.getAttributes().getNamedItem("value");
+            url = profileNode.getNodeValue();
+            break;
+          }
+        }
+        break;
+      }
+    }
+    return StringUtils.isNotBlank(url) ? url : "http://hl7.org/fhir/StructureDefinition/" + res.getLocalName();
+  }
 
 	private void reapComments(org.w3c.dom.Element element, Element context) {
 	  Node node = element.getPreviousSibling();
@@ -382,7 +452,7 @@ public class XmlParser extends ParserBase {
   }
 
 	@Override
-  public void compose(Element e, OutputStream stream, OutputStyle style, String base) throws Exception {
+  public void compose(Element e, OutputStream stream, OutputStyle style, String base) throws IOException {
     XMLWriter xml = new XMLWriter(stream, "UTF-8");
     xml.setPretty(style == OutputStyle.PRETTY);
     xml.start();

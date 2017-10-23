@@ -30,6 +30,8 @@ import javax.persistence.Index;
 import javax.persistence.SequenceGenerator;
 import javax.persistence.Table;
 
+import ca.uhn.fhir.model.api.IQueryParameterType;
+import com.sun.prism.image.Coords;
 import org.apache.commons.lang3.builder.EqualsBuilder;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
 import org.apache.commons.lang3.builder.ToStringBuilder;
@@ -99,6 +101,11 @@ public class ResourceIndexedSearchParamCoords extends BaseResourceIndexedSearchP
 		return myId;
 	}
 
+	@Override
+	public IQueryParameterType toQueryParameterType() {
+		return null;
+	}
+
 	public double getLatitude() {
 		return myLatitude;
 	}
@@ -129,7 +136,7 @@ public class ResourceIndexedSearchParamCoords extends BaseResourceIndexedSearchP
 	public String toString() {
 		ToStringBuilder b = new ToStringBuilder(this, ToStringStyle.SHORT_PREFIX_STYLE);
 		b.append("paramName", getParamName());
-		b.append("resourceId", getResource().getId()); // TODO: add a field so we don't need to resolve this
+		b.append("resourceId", getResourcePid());
 		b.append("lat", getLatitude());
 		b.append("lon", getLongitude());
 		return b.build();

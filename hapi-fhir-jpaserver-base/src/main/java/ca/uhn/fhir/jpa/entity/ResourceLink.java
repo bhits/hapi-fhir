@@ -26,12 +26,14 @@ import java.util.Date;
 import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.FetchType;
+import javax.persistence.ForeignKey;
 import javax.persistence.GeneratedValue;
 import javax.persistence.GenerationType;
 import javax.persistence.Id;
 import javax.persistence.Index;
 import javax.persistence.JoinColumn;
 import javax.persistence.ManyToOne;
+import javax.persistence.SequenceGenerator;
 import javax.persistence.Table;
 import javax.persistence.Temporal;
 import javax.persistence.TemporalType;
@@ -53,7 +55,8 @@ public class ResourceLink implements Serializable {
 
 	private static final long serialVersionUID = 1L;
 
-	@GeneratedValue(strategy = GenerationType.AUTO)
+	@SequenceGenerator(name = "SEQ_RESLINK_ID", sequenceName = "SEQ_RESLINK_ID")
+	@GeneratedValue(strategy = GenerationType.AUTO, generator = "SEQ_RESLINK_ID")
 	@Id
 	@Column(name = "PID")
 	private Long myId;
@@ -62,7 +65,7 @@ public class ResourceLink implements Serializable {
 	private String mySourcePath;
 
 	@ManyToOne(optional = false, fetch=FetchType.LAZY)
-	@JoinColumn(name = "SRC_RESOURCE_ID", referencedColumnName = "RES_ID", nullable = false)
+	@JoinColumn(name = "SRC_RESOURCE_ID", referencedColumnName = "RES_ID", nullable = false, foreignKey=@ForeignKey(name="FK_RESLINK_SOURCE"))
 //	@ContainedIn()
 	private ResourceTable mySourceResource;
 
@@ -75,7 +78,7 @@ public class ResourceLink implements Serializable {
 	private String mySourceResourceType;
 
 	@ManyToOne(optional = true, fetch=FetchType.LAZY)
-	@JoinColumn(name = "TARGET_RESOURCE_ID", referencedColumnName = "RES_ID", nullable = true)
+	@JoinColumn(name = "TARGET_RESOURCE_ID", referencedColumnName = "RES_ID", nullable = true, foreignKey=@ForeignKey(name="FK_RESLINK_TARGET"))
 	private ResourceTable myTargetResource;
 
 	@Column(name = "TARGET_RESOURCE_ID", insertable = false, updatable = false, nullable = true)
@@ -194,8 +197,16 @@ public class ResourceLink implements Serializable {
 	public void setTargetResourceUrl(IIdType theTargetResourceUrl) {
 		Validate.isTrue(theTargetResourceUrl.hasBaseUrl());
 		Validate.isTrue(theTargetResourceUrl.hasResourceType());
-		Validate.isTrue(theTargetResourceUrl.hasIdPart());
-		
+
+		if (theTargetResourceUrl.hasIdPart()) {
+			// do nothing
+		} else {
+			// Must have set an url like http://example.org/something
+			// We treat 'something' as the resource type because of fix for #659. Prior to #659 fix, 'something' was
+			// treated as the id and 'example.org' was treated as the resource type
+			// TODO: log a warning?
+		}
+
 		myTargetResourceType = theTargetResourceUrl.getResourceType();
 		myTargetResourceUrl = theTargetResourceUrl.getValue();
 	}

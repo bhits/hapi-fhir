@@ -30,21 +30,37 @@ import ca.uhn.fhir.util.ParametersUtil;
 
 public abstract class BaseJpaSystemProviderDstu2Plus<T, MT> extends BaseJpaSystemProvider<T, MT> {
 
-	//@formatter:off
 	@Operation(name=MARK_ALL_RESOURCES_FOR_REINDEXING, idempotent=true, returnParameters= {
 		@OperationParam(name="status")
 	})
-	//@formatter:on
 	public IBaseResource markAllResourcesForReindexing() {
-		int count = getDao().markAllResourcesForReindexing();
+		Integer count = getDao().markAllResourcesForReindexing();
 		
 		IBaseParameters retVal = ParametersUtil.newInstance(getContext());
 		
 		IPrimitiveType<?> string = ParametersUtil.createString(getContext(), "Marked " + count + " resources");
 		ParametersUtil.addParameterToParameters(getContext(), retVal, string, "status");
-		
+
 		return retVal;
 	}
 
-	
+	@Operation(name=PERFORM_REINDEXING_PASS, idempotent=true, returnParameters= {
+		@OperationParam(name="status")
+	})
+	public IBaseResource performReindexingPass() {
+		Integer count = getDao().performReindexingPass(1000);
+
+		IBaseParameters retVal = ParametersUtil.newInstance(getContext());
+
+		IPrimitiveType<?> string;
+		if (count == null) {
+			string = ParametersUtil.createString(getContext(), "Index pass already proceeding");
+		} else {
+			string = ParametersUtil.createString(getContext(), "Indexed " + count + " resources");
+		}
+		ParametersUtil.addParameterToParameters(getContext(), retVal, string, "status");
+
+		return retVal;
+	}
+
 }

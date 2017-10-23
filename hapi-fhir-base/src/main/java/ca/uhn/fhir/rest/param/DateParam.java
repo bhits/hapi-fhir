@@ -22,9 +22,7 @@ package ca.uhn.fhir.rest.param;
 
 import static org.apache.commons.lang3.StringUtils.isNotBlank;
 
-import java.util.Collections;
-import java.util.Date;
-import java.util.List;
+import java.util.*;
 
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.apache.commons.lang3.builder.ToStringStyle;
@@ -33,18 +31,16 @@ import org.hl7.fhir.instance.model.api.IPrimitiveType;
 import ca.uhn.fhir.context.FhirContext;
 import ca.uhn.fhir.model.api.IQueryParameterOr;
 import ca.uhn.fhir.model.api.TemporalPrecisionEnum;
-import ca.uhn.fhir.model.dstu.valueset.QuantityCompararatorEnum;
-import ca.uhn.fhir.model.primitive.DateDt;
-import ca.uhn.fhir.model.primitive.DateTimeDt;
-import ca.uhn.fhir.model.primitive.InstantDt;
-import ca.uhn.fhir.rest.method.QualifiedParamList;
+import ca.uhn.fhir.model.primitive.*;
+import ca.uhn.fhir.rest.api.QualifiedParamList;
 import ca.uhn.fhir.rest.server.exceptions.InvalidRequestException;
 import ca.uhn.fhir.util.ValidateUtil;
 
-@SuppressWarnings("deprecation")
 public class DateParam extends BaseParamWithPrefix<DateParam> implements /*IQueryParameterType , */IQueryParameterOr<DateParam> {
 
-	private final DateTimeDt myValue = new DateTimeDt();
+	private static final long serialVersionUID = 1L;
+	
+	private final DateParamDateTimeHolder myValue = new DateParamDateTimeHolder();
 
 	/**
 	 * Constructor
@@ -93,66 +89,6 @@ public class DateParam extends BaseParamWithPrefix<DateParam> implements /*IQuer
 		setValueAsString(theDate);
 	}
 
-	/**
-	 * Constructor
-	 * 
-	 * @deprecated Use constructors with {@link ParamPrefixEnum} parameter instead, as {@link QuantityCompararatorEnum}
-	 *             is deprecated
-	 */
-	@Deprecated
-	public DateParam(QuantityCompararatorEnum theComparator, Date theDate) {
-		setPrefix(toPrefix(theComparator));
-		setValue(theDate);
-	}
-
-	/**
-	 * Constructor
-	 * 
-	 * @deprecated Use constructors with {@link ParamPrefixEnum} parameter instead, as {@link QuantityCompararatorEnum}
-	 *             is deprecated
-	 */
-	@Deprecated
-	public DateParam(QuantityCompararatorEnum theComparator, DateTimeDt theDate) {
-		setPrefix(toPrefix(theComparator));
-		setValue(theDate);
-	}
-
-	/**
-	 * Constructor
-	 * 
-	 * @deprecated Use constructors with {@link ParamPrefixEnum} parameter instead, as {@link QuantityCompararatorEnum}
-	 *             is deprecated
-	 */
-	@Deprecated
-	public DateParam(QuantityCompararatorEnum theComparator, IPrimitiveType<Date> theDate) {
-		setPrefix(toPrefix(theComparator));
-		setValue(theDate);
-	}
-
-	/**
-	 * Constructor
-	 * 
-	 * @deprecated Use constructors with {@link ParamPrefixEnum} parameter instead, as {@link QuantityCompararatorEnum}
-	 *             is deprecated
-	 */
-	@Deprecated
-	public DateParam(QuantityCompararatorEnum theComparator, long theDate) {
-		ValidateUtil.isGreaterThan(theDate, 0, "theDate must not be 0 or negative");
-		setPrefix(toPrefix(theComparator));
-		setValue(new Date(theDate));
-	}
-
-	/**
-	 * Constructor
-	 * 
-	 * @deprecated Use constructors with {@link ParamPrefixEnum} parameter instead, as {@link QuantityCompararatorEnum}
-	 *             is deprecated
-	 */
-	@Deprecated
-	public DateParam(QuantityCompararatorEnum theComparator, String theDate) {
-		setPrefix(toPrefix(theComparator));
-		setValueAsString(theDate);
-	}
 
 	/**
 	 * Constructor which takes a complete [qualifier]{date} string.
@@ -173,7 +109,7 @@ public class DateParam extends BaseParamWithPrefix<DateParam> implements /*IQuer
 	String doGetValueAsQueryToken(FhirContext theContext) {
 		StringBuilder b = new StringBuilder();
 		if (getPrefix() != null) {
-			b.append(ParameterUtil.escapeWithDefault(getPrefix().getValueForContext(theContext)));
+			b.append(ParameterUtil.escapeWithDefault(getPrefix().getValue()));
 		}
 		
 		if (myValue != null) {
@@ -223,6 +159,11 @@ public class DateParam extends BaseParamWithPrefix<DateParam> implements /*IQuer
 		return null;
 	}
 
+	@Override
+	public List<DateParam> getValuesAsQueryTokens() {
+		return Collections.singletonList(this);
+	}
+
 	/**
 	 * Returns <code>true</code> if no date/time is specified. Note that this method does not check the comparator, so a
 	 * QualifiedDateParam with only a comparator and no date/time is considered empty.
@@ -267,21 +208,6 @@ public class DateParam extends BaseParamWithPrefix<DateParam> implements /*IQuer
 		}
 	}
 
-	private ParamPrefixEnum toPrefix(QuantityCompararatorEnum theComparator) {
-		if (theComparator != null) {
-			return ParamPrefixEnum.forDstu1Value(theComparator.getCode());
-		}
-		return null;
-	}
-
-	@Override
-	public String toString() {
-		ToStringBuilder b = new ToStringBuilder(this, ToStringStyle.SHORT_PREFIX_STYLE);
-		b.append("prefix", getPrefix());
-		b.append("value", getValueAsString());
-		return b.build();
-	}
-
 	@Override
 	public void  setValuesAsQueryTokens(FhirContext theContext, String theParamName, QualifiedParamList theParameters) {
 		setMissing(null);
@@ -296,9 +222,26 @@ public class DateParam extends BaseParamWithPrefix<DateParam> implements /*IQuer
 		
 	}
 
+
 	@Override
-	public List<DateParam> getValuesAsQueryTokens() {
-		return Collections.singletonList(this);
+	public String toString() {
+		ToStringBuilder b = new ToStringBuilder(this, ToStringStyle.SHORT_PREFIX_STYLE);
+		b.append("prefix", getPrefix());
+		b.append("value", getValueAsString());
+		return b.build();
+	}
+
+	public class DateParamDateTimeHolder extends BaseDateTimeDt {
+		@Override
+		protected TemporalPrecisionEnum getDefaultPrecisionForDatatype() {
+			return TemporalPrecisionEnum.SECOND;
+		}
+
+		@Override
+		protected boolean isPrecisionAllowed(TemporalPrecisionEnum thePrecision) {
+			return true;
+		}
+
 	}
 
 

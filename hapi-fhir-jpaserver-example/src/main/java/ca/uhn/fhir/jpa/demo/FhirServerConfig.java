@@ -13,26 +13,26 @@ import org.springframework.beans.factory.annotation.Autowire;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Import;
 import org.springframework.context.annotation.PropertySource;
 import org.springframework.core.env.Environment;
 import org.springframework.orm.jpa.JpaTransactionManager;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
 
-import ca.uhn.fhir.jpa.config.BaseJavaConfigDstu2;
-import ca.uhn.fhir.jpa.config.WebsocketDstu2Config;
+import ca.uhn.fhir.jpa.config.BaseJavaConfigDstu3;
 import ca.uhn.fhir.jpa.dao.DaoConfig;
-import ca.uhn.fhir.jpa.util.SubscriptionsRequireManualActivationInterceptorDstu2;
+import ca.uhn.fhir.jpa.util.SubscriptionsRequireManualActivationInterceptorDstu3;
 import ca.uhn.fhir.rest.server.interceptor.IServerInterceptor;
 import ca.uhn.fhir.rest.server.interceptor.LoggingInterceptor;
 import ca.uhn.fhir.rest.server.interceptor.ResponseHighlighterInterceptor;
 
+/**
+ * This is the primary configuration file for the example server
+ */
 @Configuration
 @EnableTransactionManagement()
-//@Import(WebsocketDstu2Config.class)
 @PropertySource("classpath:database.properties")
-public class FhirServerConfig extends BaseJavaConfigDstu2 {
+public class FhirServerConfig extends BaseJavaConfigDstu3 {
 
 	@Autowired
 	protected Environment env;
@@ -60,10 +60,10 @@ public class FhirServerConfig extends BaseJavaConfigDstu2 {
 	@Bean(destroyMethod = "close")
 	public DataSource dataSource() throws SQLException  {
 		BasicDataSource retVal = new BasicDataSource();
-		retVal.setDriver(new com.mysql.jdbc.Driver());
-		retVal.setUrl("jdbc:mysql://localhost:3306/hapifhir");
-		retVal.setUsername("root");
-		retVal.setPassword("admin");
+		retVal.setDriver(new com.mysql.cj.jdbc.Driver());
+		retVal.setUrl(env.getProperty("jdbc.url"));
+		retVal.setUsername(env.getProperty("jdbc.username"));
+		retVal.setPassword(env.getProperty("jdbc.password"));
 		return retVal;
 	}
 
@@ -80,7 +80,7 @@ public class FhirServerConfig extends BaseJavaConfigDstu2 {
 
 	private Properties jpaProperties() {
 		Properties extraProperties = new Properties();
-		extraProperties.put("hibernate.dialect", org.hibernate.dialect.MySQLDialect.class.getName());
+		extraProperties.put("hibernate.dialect", "org.hibernate.dialect.MySQL5InnoDBDialect");
 		extraProperties.put("hibernate.format_sql", "true");
 		extraProperties.put("hibernate.show_sql", "false");
 		extraProperties.put("hibernate.hbm2ddl.auto", "update");
@@ -92,6 +92,7 @@ public class FhirServerConfig extends BaseJavaConfigDstu2 {
 		extraProperties.put("hibernate.search.default.directory_provider", "filesystem");
 		extraProperties.put("hibernate.search.default.indexBase", "target/lucenefiles");
 		extraProperties.put("hibernate.search.lucene_version", "LUCENE_CURRENT");
+//		extraProperties.put("hibernate.search.default.worker.execution", "async");
 		return extraProperties;
 	}
 
@@ -119,7 +120,7 @@ public class FhirServerConfig extends BaseJavaConfigDstu2 {
 
 	@Bean(autowire = Autowire.BY_TYPE)
 	public IServerInterceptor subscriptionSecurityInterceptor() {
-		SubscriptionsRequireManualActivationInterceptorDstu2 retVal = new SubscriptionsRequireManualActivationInterceptorDstu2();
+		SubscriptionsRequireManualActivationInterceptorDstu3 retVal = new SubscriptionsRequireManualActivationInterceptorDstu3();
 		return retVal;
 	}
 

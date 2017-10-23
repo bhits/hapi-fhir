@@ -1,18 +1,7 @@
 package ca.uhn.fhir.jpa.dao.dstu2;
 
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.emptyString;
-import static org.hamcrest.Matchers.endsWith;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.startsWith;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import static org.hamcrest.Matchers.*;
+import static org.junit.Assert.*;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -34,46 +23,79 @@ import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import ca.uhn.fhir.jpa.dao.BaseHapiFhirDao;
-import ca.uhn.fhir.jpa.entity.ResourceEncodingEnum;
-import ca.uhn.fhir.jpa.entity.ResourceTable;
-import ca.uhn.fhir.jpa.entity.TagTypeEnum;
+import ca.uhn.fhir.jpa.entity.*;
 import ca.uhn.fhir.jpa.provider.SystemProviderDstu2Test;
-import ca.uhn.fhir.model.api.IResource;
-import ca.uhn.fhir.model.api.ResourceMetadataKeyEnum;
-import ca.uhn.fhir.model.api.TagList;
+import ca.uhn.fhir.model.api.*;
 import ca.uhn.fhir.model.base.composite.BaseCodingDt;
-import ca.uhn.fhir.model.dstu2.composite.CodingDt;
-import ca.uhn.fhir.model.dstu2.composite.MetaDt;
-import ca.uhn.fhir.model.dstu2.composite.ResourceReferenceDt;
-import ca.uhn.fhir.model.dstu2.resource.Appointment;
+import ca.uhn.fhir.model.dstu2.composite.*;
+import ca.uhn.fhir.model.dstu2.resource.*;
 import ca.uhn.fhir.model.dstu2.resource.Bundle;
-import ca.uhn.fhir.model.dstu2.resource.Bundle.Entry;
-import ca.uhn.fhir.model.dstu2.resource.Bundle.EntryRequest;
-import ca.uhn.fhir.model.dstu2.resource.Bundle.EntryResponse;
-import ca.uhn.fhir.model.dstu2.resource.Medication;
-import ca.uhn.fhir.model.dstu2.resource.MedicationOrder;
-import ca.uhn.fhir.model.dstu2.resource.Observation;
-import ca.uhn.fhir.model.dstu2.resource.OperationOutcome;
-import ca.uhn.fhir.model.dstu2.resource.Patient;
-import ca.uhn.fhir.model.dstu2.resource.ValueSet;
-import ca.uhn.fhir.model.dstu2.valueset.BundleTypeEnum;
-import ca.uhn.fhir.model.dstu2.valueset.HTTPVerbEnum;
-import ca.uhn.fhir.model.dstu2.valueset.IssueSeverityEnum;
+import ca.uhn.fhir.model.dstu2.resource.Bundle.*;
+import ca.uhn.fhir.model.dstu2.valueset.*;
 import ca.uhn.fhir.model.primitive.IdDt;
 import ca.uhn.fhir.model.primitive.UriDt;
+import ca.uhn.fhir.rest.api.Constants;
 import ca.uhn.fhir.rest.api.RestOperationTypeEnum;
-import ca.uhn.fhir.rest.server.Constants;
-import ca.uhn.fhir.rest.server.IBundleProvider;
-import ca.uhn.fhir.rest.server.exceptions.InvalidRequestException;
-import ca.uhn.fhir.rest.server.exceptions.PreconditionFailedException;
-import ca.uhn.fhir.rest.server.exceptions.ResourceGoneException;
-import ca.uhn.fhir.rest.server.exceptions.ResourceNotFoundException;
+import ca.uhn.fhir.rest.api.server.IBundleProvider;
+import ca.uhn.fhir.rest.server.exceptions.*;
 import ca.uhn.fhir.rest.server.interceptor.IServerInterceptor.ActionRequestDetails;
 import ca.uhn.fhir.util.TestUtil;
 
 public class FhirSystemDaoDstu2Test extends BaseJpaDstu2SystemTest {
 
 	private static final org.slf4j.Logger ourLog = org.slf4j.LoggerFactory.getLogger(FhirSystemDaoDstu2Test.class);
+
+	/**
+	 * See #638
+	 */
+	@Test
+	public void testTransactionBug638() throws Exception {
+		String input = loadClasspath("/bug638.xml");
+		Bundle request = myFhirCtx.newXmlParser().parseResource(Bundle.class, input);
+		
+		Bundle resp = mySystemDao.transaction(mySrd, request);
+		
+		ourLog.info(myFhirCtx.newXmlParser().setPrettyPrint(true).encodeResourceToString(resp));
+		
+		assertEquals(18, resp.getEntry().size());
+	}
+
+	@Test
+	public void testTransactionWhichFailsPersistsNothing() {
+
+		// Run a transaction which points to that practitioner
+		// in a field that isn't allowed to refer to a practitioner
+		Bundle input = new Bundle();
+		input.setType(BundleTypeEnum.TRANSACTION);
+
+		Patient pt = new Patient();
+		pt.setId("PT");
+		pt.setActive(true);
+		pt.addName().addFamily("FAMILY");
+		input.addEntry()
+			.setResource(pt)
+			.getRequest().setMethod(HTTPVerbEnum.PUT).setUrl("Patient/PT");
+
+		Observation obs = new Observation();
+		obs.setId("OBS");
+		obs.getCode().addCoding().setSystem("foo").setCode("bar");
+		obs.addPerformer().setReference("Practicioner/AAAAA");
+		input.addEntry()
+			.setResource(obs)
+			.getRequest().setMethod(HTTPVerbEnum.PUT).setUrl("Observation/OBS");
+
+		try {
+			mySystemDao.transaction(mySrd, input);
+			fail();
+		} catch (UnprocessableEntityException e) {
+			assertThat(e.getMessage(), containsString("Resource type 'Practicioner' is not valid for this path"));
+		}
+
+		assertThat(myResourceTableDao.findAll(), empty());
+		assertThat(myResourceIndexedSearchParamStringDao.findAll(), empty());
+
+	}
+
 
 	/**
 	 * Per a message on the mailing list
@@ -287,36 +309,31 @@ public class FhirSystemDaoDstu2Test extends BaseJpaDstu2SystemTest {
 		request.addEntry().getRequest().setMethod(HTTPVerbEnum.GET).setUrl("Patient/THIS_ID_DOESNT_EXIST");
 
 		Bundle resp = mySystemDao.transaction(mySrd, request);
-		assertEquals(3, resp.getEntry().size());
+		assertEquals(2, resp.getEntry().size());
 		assertEquals(BundleTypeEnum.BATCH_RESPONSE, resp.getTypeElement().getValueAsEnum());
 
 		ourLog.info(myFhirCtx.newXmlParser().setPrettyPrint(true).encodeResourceToString(resp));
 		EntryResponse respEntry;
 
-		// Bundle.entry[0] is operation outcome
-		assertEquals(OperationOutcome.class, resp.getEntry().get(0).getResource().getClass());
-		assertEquals(IssueSeverityEnum.INFORMATION, ((OperationOutcome) resp.getEntry().get(0).getResource()).getIssue().get(0).getSeverityElement().getValueAsEnum());
-		assertThat(((OperationOutcome) resp.getEntry().get(0).getResource()).getIssue().get(0).getDiagnostics(), startsWith("Batch completed in "));
-
 		// Bundle.entry[1] is create response
-		assertEquals("201 Created", resp.getEntry().get(1).getResponse().getStatus());
-		assertThat(resp.getEntry().get(1).getResponse().getLocation(), startsWith("Patient/"));
+		assertEquals("201 Created", resp.getEntry().get(0).getResponse().getStatus());
+		assertThat(resp.getEntry().get(0).getResponse().getLocation(), startsWith("Patient/"));
 
 		// Bundle.entry[2] is failed read response
-		assertEquals(OperationOutcome.class, resp.getEntry().get(2).getResource().getClass());
-		assertEquals(IssueSeverityEnum.ERROR, ((OperationOutcome) resp.getEntry().get(2).getResource()).getIssue().get(0).getSeverityElement().getValueAsEnum());
-		assertEquals("Resource Patient/THIS_ID_DOESNT_EXIST is not known", ((OperationOutcome) resp.getEntry().get(2).getResource()).getIssue().get(0).getDiagnostics());
-		assertEquals("404 Not Found", resp.getEntry().get(2).getResponse().getStatus());
+		assertEquals(OperationOutcome.class, resp.getEntry().get(1).getResource().getClass());
+		assertEquals(IssueSeverityEnum.ERROR, ((OperationOutcome) resp.getEntry().get(1).getResource()).getIssue().get(0).getSeverityElement().getValueAsEnum());
+		assertEquals("Resource Patient/THIS_ID_DOESNT_EXIST is not known", ((OperationOutcome) resp.getEntry().get(1).getResource()).getIssue().get(0).getDiagnostics());
+		assertEquals("404 Not Found", resp.getEntry().get(1).getResponse().getStatus());
 
 		// Check POST
-		respEntry = resp.getEntry().get(1).getResponse();
+		respEntry = resp.getEntry().get(0).getResponse();
 		assertEquals("201 Created", respEntry.getStatus());
 		IdDt createdId = new IdDt(respEntry.getLocation());
 		assertEquals("Patient", createdId.getResourceType());
 		myPatientDao.read(createdId, mySrd); // shouldn't fail
 
 		// Check GET
-		respEntry = resp.getEntry().get(2).getResponse();
+		respEntry = resp.getEntry().get(1).getResponse();
 		assertThat(respEntry.getStatus(), startsWith("404"));
 
 	}
@@ -875,7 +892,7 @@ public class FhirSystemDaoDstu2Test extends BaseJpaDstu2SystemTest {
 		}
 
 		IBundleProvider history = myPatientDao.history(id, null, null, mySrd);
-		assertEquals(2, history.size());
+		assertEquals(2, history.size().intValue());
 
 		assertNotNull(ResourceMetadataKeyEnum.DELETED_AT.get((IResource) history.getResources(0, 1).get(0)));
 		assertNotNull(ResourceMetadataKeyEnum.DELETED_AT.get((IResource) history.getResources(0, 1).get(0)).getValue());
