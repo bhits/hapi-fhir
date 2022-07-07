@@ -384,7 +384,7 @@
 		<!-- Dependency Versions -->
 		<derby_version>10.13.1.1</derby_version>
 		<jersey_version>2.25.1</jersey_version>
-		<jetty_version>9.4.6.v20170531</jetty_version>
+		<jetty_version>9.4.48.v20220622</jetty_version>
 		<hibernate_version>5.2.10.Final</hibernate_version>
 		<hibernate_validator_version>5.4.1.Final</hibernate_validator_version>
 		<!-- Update lucene version when you update hibernate-search version -->
