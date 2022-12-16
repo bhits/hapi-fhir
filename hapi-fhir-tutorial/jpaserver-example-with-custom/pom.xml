@@ -99,7 +99,7 @@
 		<dependency>
 			<groupId>org.springframework</groupId>
 			<artifactId>spring-webmvc</artifactId>
-			<version>4.1.6.RELEASE</version>
+			<version>5.2.20.RELEASE</version>
 		</dependency>
 
 		<!-- You may not need this if you are deploying to an application server 
